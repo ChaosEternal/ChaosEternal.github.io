@@ -195,11 +195,11 @@ body{
     -webkit-hyphens: auto;
 }
 a{
-    color:#30557c;
+    color:#113355;
     text-decoration:none;
 }
 a:hover{
-    color:#395b7c;
+    color:#114477;
 }
 a.article-title{
     margin:0;

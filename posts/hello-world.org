@@ -1,4 +1,4 @@
-#+TITLE: Hello world
+#+TITLE: My new blog
 #+DATE: <2017-09-17 Sun>
 
 * Hello, twisted spacetime

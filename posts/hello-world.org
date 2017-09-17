@@ -1,7 +1,7 @@
 #+TITLE: My new blog
 #+DATE: <2017-09-17 Sun>
 
-(I should put something here)
+After keeping silence for many years, I am starting a new blog, 
 * Hello, twisted spacetime
 This is my new blog system, which is still under construction.
 In this space, I will talk about Scheme, Linux, and other related topics, these will record my adventure into Schemer's land.
@@ -15,5 +15,4 @@ For integrating these things, these tools are used:
  - emacs langtool
  - git
  and more.
-
 

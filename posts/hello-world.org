@@ -1,4 +1,14 @@
 #+TITLE: Hello world
 #+DATE: <2017-09-17 Sun>
 
-* hello world
+* Hello, twisted spacetime
+This is my new blog system, which is still under construction.
+In this space, I will talk about Scheme, Linux, and other related topics, these will record my adventure into Schemer's land.x
+
+For integrating these things, these tools are used:
+ - emacs
+ - org-mode
+ - org-static-blog
+ - language-tool
+ - emacs langtool
+ - git

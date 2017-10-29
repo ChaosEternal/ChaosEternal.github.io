@@ -1,0 +1,222 @@
+#+TITLE: Packrat parser in R6RS
+#+DATE: <2017-10-29 Sun>
+
+* Packrat algorithm
+  Packrat parsing algorithm is an algorithm for parsing PEG[1], it can parse PEG in guaranteed linear time.[2]
+  There are lots of resources about PEG and packrat algorithm here: http://bford.info/packrat/.
+  [[https://tech.labs.oliverwyman.com/author/tonyg/][Tony Garnock-Jones]] had an implementation of packrat in his [[http://tech.labs.oliverwyman.com/blog/2005/08/11/extensible-parsing-systems/][blog]], and he then [[https://tech.labs.oliverwyman.com/blog/2005/08/22/json-for-mzscheme-and-a-portable-packrat-parsing-combinator-library/][rewrote]] it using MzScheme and then upon the parser he wrote a JSON read-write library. 
+  He also wrote a [[http://tech.labs.oliverwyman.com/downloads/dev.lshift.net/tonyg/packrat.pdf][document]] about how to use it.
+  This packrat library is included in Chicken Scheme's egg system[3] and then be ported as a R7RS library[4]. 
+
+* A brief walk through of packrat
+  PEG is very similar to regexp. Here is the comparison of concepts between PEG and regexp
+  |                       | PEG                     | Regexp        |
+  | atoms                 | any non-terminal symbol | any character |
+  |                       | terminal symbol         | $, \>         |
+  |                       | empty                   | empty         |
+  | combination operators | sequence                | string        |
+  |                       | ordered choice          | a \vert b     |
+  |                       | zero-or-more            | a*            |
+  |                       | one-or-more             | a+            |
+  |                       | optional                | a?            |
+    
+  Generally PEG is more powerful than regular expressions, for example, PEG can handle nested parenthesis while regexp can't, this is because PEG is recursive. 
+  For example, regular expressions can't process JSON data with arbitrary depth.
+
+** My Packrat extensions
+   I have written some extensions to original packrat library, these extensions is intended to make life easier with packrat. 
+   The code can be find here: [[https://github.com/ChaosEternal/packrat-extended][https://github.com/ChaosEternal/packrat-extended]], tested under ChezScheme.
+   First, I add a ~(? pred)~ syntax, a place for a user defined predictors (in packrat.ss),
+   then I add some help functions like character test functions and logic combination functions (in packrat-utils.ss), some of them(token, json-string) are isolated from the json parser.
+
+** Using Packrat
+   Macro  ~packrat-parser~ provides syntactic sugar to build complex parser combinator from simpler ones. 
+   Input of these combinators are generators which are producing pairs of ~(kind value)~, and parser will check with the kind and take the value.
+   Although the generator in the example specified in Tony's document generates ~'(kind value)~ where kind is symbol and value is numeric value, ~(char char)~ will be generated in most use case.
+
+** Parse json step by step
+*** Very beginning
+**** Generator
+     This generator read from a given port and produces a stream of (char . char).
+     #+begin_src scheme
+       (import (ext packrat)
+	       (ext packrat-utils)
+	       (rnrs (6))
+	       )
+
+       (define (generator p)
+	 (let ((ateof #f)
+	       (pos (top-parse-position "<?>")))
+	   (lambda ()
+	     (if ateof
+		 (values pos #f)
+		 (let ((x (read-char p)))
+		   (if (eof-object? x)
+		       (begin
+			 (set! ateof #t)
+			 (values pos (cons #\x04 #\x04)))
+		       (let ((old-pos pos))
+			 (set! pos (update-parse-position pos x))
+			 (values old-pos (cons x x)))))))))
+       
+     #+end_src
+**** Parser for Whitespace 
+     We can start from a very simple parser which just reads arbitary number of white-spaces.
+     The parse returns nothing but an ~eof-object~ when parse reaches the end of file.
+     #+begin_src scheme
+       (define parser
+	 (packrat-parser any
+			 (any ((white '#\x04) (eof-object)))
+			 (white (((? char-whitespace?) white) 'whitespace)
+				(((? char-whitespace?)) 'whitespace))))
+     #+end_src
+
+**** A reader function
+     A reader function integrates parser and generator.
+     #+begin_src scheme
+       (define (read-any p)
+  	(let ((result (parser (base-generator->results (generator p)))))
+  	  (if (parse-result-successful? result)
+  	      (parse-result-semantic-value result)
+  	      (error 'json-read "JSON Parse Error"
+  		     (let ((e (parse-result-error result)))
+  		       (list 'json-parse-error
+  			     (parse-position->string (parse-error-position e))
+  			     (parse-error-expected e)
+  			     (parse-error-messages e)))))))
+     #+end_src
+     Now we can test our first parser:
+     #+begin_src scheme
+       (read-any (open-string-input-port "       "))
+       ;;=> #<eof>
+
+     #+end_src
+
+*** Going Further
+**** Parse comments
+     Comments are treated as white-spaces, so we can extend white-space parser with comment support.
+     In json, two kinds of comments are accepted: 
+     - Start with ~//~, end with newline, or
+     - surrounded by ~/*~ and ~*/~ pair.
+     So the rewritten parse is:
+     #+begin_src scheme
+       (define parser
+	 (packrat-parser any
+			 (any ((white '#\x04) (eof-object)))
+			 (white (((? char-whitespace?) white) 'whitespace)
+				(((? char-whitespace?)) 'whitespace)
+				((b <- comment) 'whitespace))
+			 (comment (((token "/*") b <- comment-body) b)
+				  (((token "//") b <- skip-to-newline) b)
+				  (() 'whitespace))
+			 (comment-body (((token "*/") w <- white) w)
+				      (((? true) comment-body) 'skipped-comment-char))
+			 (skip-to-newline (((? (inverse char-newline?))
+					    skip-to-newline) 'whitespace)
+					  (((? char-newline?) white) 'whitespace)
+					  )))
+     #+end_src
+     We can test it:
+     #+begin_src scheme
+       (read-any (open-string-input-port "  /*comment*/ "))
+       ;;=> #<eof>
+       (read-any (open-string-input-port "   //comment \n"))
+       ;;=> #<eof>
+     #+end_src
+**** Parse tokens
+     There are three basic json token: ~true~ ~false~ ~null~. Now we deal with these real entities.
+     #+begin_src scheme
+       ;; In json, empty list [] and null are distinct objects, 
+       ;; but in scheme (null? '()) => #t and (list? '()) => #t, 
+       ;; this is the reason why json-null is introduced here.
+       (define-record-type json-null)
+       ;; token is defined in packrat-utils module.
+       (define (token str . comp?)
+	 (let ((cmp? (if (null? comp?)
+			 char=?
+			 comp?)))
+	   (lambda (starting-results)
+	     (let loop ((pos 0) (results starting-results))
+	       (if (= pos (string-length str))
+		   (make-result str results)
+		   (let ((res-token-value (parse-results-token-value results)))
+		     (if (and res-token-value (cmp? res-token-value (string-ref str pos)))
+			 (loop (+ pos 1) (parse-results-next results))
+			 (make-expected-result (parse-results-position starting-results) str))))))))
+       (define parser
+	 (packrat-parser any
+			 (any
+			  ((white (token "true")) #t)
+			  ((white (token "false")) #f)
+			  ((white (token "null")) (make-json-null))
+			  ((white '#\x04) (eof-object)))
+			 (white (((? char-whitespace?) white) 'whitespace)
+				(((? char-whitespace?)) 'whitespace)
+				((b <- comment) 'whitespace))
+			 (comment (((token "/*") b <- comment-body) b)
+				  (((token "//") b <- skip-to-newline) b)
+				  (() 'whitespace))
+			 (comment-body (((token "*/") w <- white) w)
+				      (((? true) comment-body) 'skipped-comment-char))
+			 (skip-to-newline (((? (inverse char-newline?))
+					    skip-to-newline) 'whitespace)
+					  (((? char-newline?) white) 'whitespace)
+					  )))
+     #+end_src
+     We can test them:
+     #+begin_src scheme
+       (read-any (open-string-input-port "  /*comment*/ true"))
+       ;;=> #t
+       (read-any (open-string-input-port "   //comment \n false"))
+       ;;=> #f
+       (read-any (open-string-input-port "   //comment \n null   "))
+       ;;=> #<r6rs:record:json-null>
+     #+end_src
+**** Recursive structure: List
+     Lists are such a struct which contains valid json structures.
+     #+begin_src scheme
+       (define parser
+	 (packrat-parser any
+			 (any
+			  ((white '#\[ entries <- array-entries white '#\]) entries)
+			  ;; list: [ json, json+ ] | []
+			  ((white (token "true")) #t)
+			  ((white (token "false")) #f)
+			  ((white (token "null")) (make-json-null))
+			  ((white '#\x04) (eof-object)))
+			 (white (((? char-whitespace?) white) 'whitespace)
+				(((? char-whitespace?)) 'whitespace)
+				((b <- comment) 'whitespace))
+			 (comment (((token "/*") b <- comment-body) b)
+				  (((token "//") b <- skip-to-newline) b)
+				  (() 'whitespace))
+			 (comment-body (((token "*/") w <- white) w)
+				      (((? true) comment-body) 'skipped-comment-char))
+			 (skip-to-newline (((? (inverse char-newline?))
+					    skip-to-newline) 'whitespace)
+					  (((? char-newline?) white) 'whitespace))
+			 (array-entries ((a <- array-entries-nonempty) a)
+					(() '()))
+			 (array-entries-nonempty ((entry <- any white '#\, entries <- array-entries-nonempty) (cons entry entries))
+						 ((entry <- any) (list entry)))
+
+			 ))x
+     #+end_src
+     Tests:
+     #+begin_src scheme
+       (read-any (open-string-input-port "  /*comment*/ [true, false, null]"))
+       ;;=> (#t #f #<r6rs:record:json-null>)
+       (read-any (open-string-input-port "  /*comment*/ [true, [false, false, true], null]"))
+       ;;=> (#t (#f #f #t) #<r6rs:record:json-null>)
+     #+end_src
+
+*** Complete the job and going further
+    The complete json-parser can also be found in my github repository, it is origined from the json-parser in Tony Garnock-Jones' blog, but I have rewritten some parts of it using my packrat extension and utils lib.
+    The parser can be extended to parse ruby serialized objects(similar to json).
+** Conclusion
+   Packrat is a powerful parser and in this blog, I briefed its structure and usage by constructing a json parser.
+
+[1] https://en.wikipedia.org/wiki/Parsing_expression_grammar
+[2] https://en.wikipedia.org/wiki/Parsing_expression_grammar#Advantages
+[3] https://wiki.call-cc.org/eggref/4/packrat
+[4] https://github.com/petercrlane/r7rs-libs.git

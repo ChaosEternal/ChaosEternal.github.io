@@ -99,10 +99,10 @@
     color: #999;
 }
 a.title {
-    color: #eee;
+    color: #0000ff;
 }
 a.title:hover {
-    color: #cdf;
+    color: #8899ff;
 }
 a.identity {
     font-size: 20px;
@@ -195,7 +195,7 @@ body{
     -webkit-hyphens: auto;
 }
 a{
-    color:#113355;
+    color:#113399;
     text-decoration:none;
 }
 a:hover{

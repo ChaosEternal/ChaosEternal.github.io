@@ -26,7 +26,405 @@
     <a href="https://twitter.com/chaoseternal">Twitter</a> | <a href="http://github.com/Chaoseternal">Github</a>
   </div>
 </div></div>
-<div id="content"><div class="post-date">17 Sep 2017</div><h1 class="post-title"><a href="http://chaoseternal.net/hello-world.html">My new blog</a></h1>
+<div id="content"><div class="post-date">29 Oct 2017</div><h1 class="post-title"><a href="http://chaoseternal.net/packrat-intro.html">Packrat parser in R6RS</a></h1>
+
+<div id="outline-container-sec-1" class="outline-2">
+<h2 id="sec-1">Packrat algorithm</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Packrat parsing algorithm is an algorithm for parsing PEG<sup><a id="fnr.1" name="fnr.1" class="footref" href="#fn.1">1</a></sup>, it can parse PEG in guaranteed linear time.<sup><a id="fnr.2" name="fnr.2" class="footref" href="#fn.2">2</a></sup>
+There are lots of resources about PEG and packrat algorithm here: <a href="http://bford.info/packrat/">http://bford.info/packrat/</a>.
+<a href="https://tech.labs.oliverwyman.com/author/tonyg/">Tony Garnock-Jones</a> had an implementation of packrat in his <a href="http://tech.labs.oliverwyman.com/blog/2005/08/11/extensible-parsing-systems/">blog</a>, and he then <a href="https://tech.labs.oliverwyman.com/blog/2005/08/22/json-for-mzscheme-and-a-portable-packrat-parsing-combinator-library/">rewrote</a> it using MzScheme and then upon the parser he wrote a JSON read-write library. 
+He also wrote a <a href="http://tech.labs.oliverwyman.com/downloads/dev.lshift.net/tonyg/packrat.pdf">document</a> about how to use it.
+This packrat library is included in Chicken Scheme's egg system<sup><a id="fnr.3" name="fnr.3" class="footref" href="#fn.3">3</a></sup> and then be ported as a R7RS library<sup><a id="fnr.4" name="fnr.4" class="footref" href="#fn.4">4</a></sup>. 
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-2" class="outline-2">
+<h2 id="sec-2">A brief walk through of packrat</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+PEG is very similar to regexp. Here is the comparison of concepts between PEG and regexp
+</p>
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="left" />
+
+<col  class="left" />
+
+<col  class="left" />
+</colgroup>
+<tbody>
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">PEG</td>
+<td class="left">Regexp</td>
+</tr>
+
+<tr>
+<td class="left">atoms</td>
+<td class="left">any non-terminal symbol</td>
+<td class="left">any character</td>
+</tr>
+
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">terminal symbol</td>
+<td class="left">$, \&gt;</td>
+</tr>
+
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">empty</td>
+<td class="left">empty</td>
+</tr>
+
+<tr>
+<td class="left">combination operators</td>
+<td class="left">sequence</td>
+<td class="left">string</td>
+</tr>
+
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">ordered choice</td>
+<td class="left">a &vert; b</td>
+</tr>
+
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">zero-or-more</td>
+<td class="left">a*</td>
+</tr>
+
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">one-or-more</td>
+<td class="left">a+</td>
+</tr>
+
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">optional</td>
+<td class="left">a?</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Generally PEG is more powerful than regular expressions, for example, PEG can handle nested parenthesis while regexp can't, this is because PEG is recursive. 
+For example, regular expressions can't process JSON data with arbitrary depth.
+</p>
+</div>
+
+<div id="outline-container-sec-2-1" class="outline-3">
+<h3 id="sec-2-1">My Packrat extensions</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+I have written some extensions to original packrat library, these extensions is intended to make life easier with packrat. 
+The code can be find here: <a href="https://github.com/ChaosEternal/packrat-extended"><a href="https://github.com/ChaosEternal/packrat-extended">https://github.com/ChaosEternal/packrat-extended</a></a>, tested under ChezScheme.
+First, I add a <code>(? pred)</code> syntax, a place for a user defined predictors (in packrat.ss),
+then I add some help functions like character test functions and logic combination functions (in packrat-utils.ss), some of them(token, json-string) are isolated from the json parser.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-2-2" class="outline-3">
+<h3 id="sec-2-2">Using Packrat</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+Macro  <code>packrat-parser</code> provides syntactic sugar to build complex parser combinator from simpler ones. 
+Input of these combinators are generators which are producing pairs of <code>(kind value)</code>, and parser will check with the kind and take the value.
+Although the generator in the example specified in Tony's document generates ~'(kind value)~ where kind is symbol and value is numeric value, <code>(char char)</code> will be generated in most use case.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-2-3" class="outline-3">
+<h3 id="sec-2-3">Parse json step by step</h3>
+<div class="outline-text-3" id="text-2-3">
+</div><div id="outline-container-sec-2-3-1" class="outline-4">
+<h4 id="sec-2-3-1">Very beginning</h4>
+<div class="outline-text-4" id="text-2-3-1">
+</div><ul class="org-ul"><li><a id="sec-2-3-1-1" name="sec-2-3-1-1"></a>Generator<br  /><div class="outline-text-5" id="text-2-3-1-1">
+<p>
+This generator read from a given port and produces a stream of (char . char).
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">(import (ext packrat)
+	(ext packrat-utils)
+	(rnrs (6))
+	)
+
+(define (generator p)
+  (let ((ateof #f)
+	(pos (top-parse-position "&lt;?&gt;")))
+    (lambda ()
+      (if ateof
+	  (values pos #f)
+	  (let ((x (read-char p)))
+	    (if (eof-object? x)
+		(begin
+		  (set! ateof #t)
+		  (values pos (cons #\x04 #\x04)))
+		(let ((old-pos pos))
+		  (set! pos (update-parse-position pos x))
+		  (values old-pos (cons x x)))))))))
+</pre>
+</div>
+</div>
+</li>
+<li><a id="sec-2-3-1-2" name="sec-2-3-1-2"></a>Parser for Whitespace<br  /><div class="outline-text-5" id="text-2-3-1-2">
+<p>
+We can start from a very simple parser which just reads arbitary number of white-spaces.
+The parse returns nothing but an <code>eof-object</code> when parse reaches the end of file.
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">(define parser
+  (packrat-parser any
+		  (any ((white '#\x04) (eof-object)))
+		  (white (((? char-whitespace?) white) 'whitespace)
+			 (((? char-whitespace?)) 'whitespace))))
+</pre>
+</div>
+</div>
+</li>
+
+<li><a id="sec-2-3-1-3" name="sec-2-3-1-3"></a>A reader function<br  /><div class="outline-text-5" id="text-2-3-1-3">
+<p>
+A reader function integrates parser and generator.
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">(define (read-any p)
+ (let ((result (parser (base-generator-&gt;results (generator p)))))
+   (if (parse-result-successful? result)
+       (parse-result-semantic-value result)
+       (error 'json-read "JSON Parse Error"
+	      (let ((e (parse-result-error result)))
+		(list 'json-parse-error
+		      (parse-position-&gt;string (parse-error-position e))
+		      (parse-error-expected e)
+		      (parse-error-messages e)))))))
+</pre>
+</div>
+<p>
+Now we can test our first parser:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">(read-any (open-string-input-port "       "))
+;;=&gt; #&lt;eof&gt;
+</pre>
+</div>
+</div>
+</li></ul>
+</div>
+
+<div id="outline-container-sec-2-3-2" class="outline-4">
+<h4 id="sec-2-3-2">Going Further</h4>
+<div class="outline-text-4" id="text-2-3-2">
+</div><ul class="org-ul"><li><a id="sec-2-3-2-1" name="sec-2-3-2-1"></a>Parse comments<br  /><div class="outline-text-5" id="text-2-3-2-1">
+<p>
+Comments are treated as white-spaces, so we can extend white-space parser with comment support.
+In json, two kinds of comments are accepted: 
+</p>
+<ul class="org-ul">
+<li>Start with <code>//</code>, end with newline, or
+</li>
+<li>surrounded by <code>/*</code> and <code>*/</code> pair.
+</li>
+</ul>
+<p>
+So the rewritten parse is:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">(define parser
+  (packrat-parser any
+		  (any ((white '#\x04) (eof-object)))
+		  (white (((? char-whitespace?) white) 'whitespace)
+			 (((? char-whitespace?)) 'whitespace)
+			 ((b &lt;- comment) 'whitespace))
+		  (comment (((token "/*") b &lt;- comment-body) b)
+			   (((token "//") b &lt;- skip-to-newline) b)
+			   (() 'whitespace))
+		  (comment-body (((token "*/") w &lt;- white) w)
+			       (((? true) comment-body) 'skipped-comment-char))
+		  (skip-to-newline (((? (inverse char-newline?))
+				     skip-to-newline) 'whitespace)
+				   (((? char-newline?) white) 'whitespace)
+				   )))
+</pre>
+</div>
+<p>
+We can test it:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">(read-any (open-string-input-port "  /*comment*/ "))
+;;=&gt; #&lt;eof&gt;
+(read-any (open-string-input-port "   //comment \n"))
+;;=&gt; #&lt;eof&gt;
+</pre>
+</div>
+</div>
+</li>
+<li><a id="sec-2-3-2-2" name="sec-2-3-2-2"></a>Parse tokens<br  /><div class="outline-text-5" id="text-2-3-2-2">
+<p>
+There are three basic json token: <code>true</code> <code>false</code> <code>null</code>. Now we deal with these real entities.
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">;; In json, empty list [] and null are distinct objects, 
+;; but in scheme (null? '()) =&gt; #t and (list? '()) =&gt; #t, 
+;; this is the reason why json-null is introduced here.
+(define-record-type json-null)
+;; token is defined in packrat-utils module.
+(define (token str . comp?)
+  (let ((cmp? (if (null? comp?)
+		  char=?
+		  comp?)))
+    (lambda (starting-results)
+      (let loop ((pos 0) (results starting-results))
+	(if (= pos (string-length str))
+	    (make-result str results)
+	    (let ((res-token-value (parse-results-token-value results)))
+	      (if (and res-token-value (cmp? res-token-value (string-ref str pos)))
+		  (loop (+ pos 1) (parse-results-next results))
+		  (make-expected-result (parse-results-position starting-results) str))))))))
+(define parser
+  (packrat-parser any
+		  (any
+		   ((white (token "true")) #t)
+		   ((white (token "false")) #f)
+		   ((white (token "null")) (make-json-null))
+		   ((white '#\x04) (eof-object)))
+		  (white (((? char-whitespace?) white) 'whitespace)
+			 (((? char-whitespace?)) 'whitespace)
+			 ((b &lt;- comment) 'whitespace))
+		  (comment (((token "/*") b &lt;- comment-body) b)
+			   (((token "//") b &lt;- skip-to-newline) b)
+			   (() 'whitespace))
+		  (comment-body (((token "*/") w &lt;- white) w)
+			       (((? true) comment-body) 'skipped-comment-char))
+		  (skip-to-newline (((? (inverse char-newline?))
+				     skip-to-newline) 'whitespace)
+				   (((? char-newline?) white) 'whitespace)
+				   )))
+</pre>
+</div>
+<p>
+We can test them:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">(read-any (open-string-input-port "  /*comment*/ true"))
+;;=&gt; #t
+(read-any (open-string-input-port "   //comment \n false"))
+;;=&gt; #f
+(read-any (open-string-input-port "   //comment \n null   "))
+;;=&gt; #&lt;r6rs:record:json-null&gt;
+</pre>
+</div>
+</div>
+</li>
+<li><a id="sec-2-3-2-3" name="sec-2-3-2-3"></a>Recursive structure: List<br  /><div class="outline-text-5" id="text-2-3-2-3">
+<p>
+Lists are such a struct which contains valid json structures.
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">(define parser
+  (packrat-parser any
+		  (any
+		   ((white '#\[ entries &lt;- array-entries white '#\]) entries)
+		   ;; list: [ json, json+ ] | []
+		   ((white (token "true")) #t)
+		   ((white (token "false")) #f)
+		   ((white (token "null")) (make-json-null))
+		   ((white '#\x04) (eof-object)))
+		  (white (((? char-whitespace?) white) 'whitespace)
+			 (((? char-whitespace?)) 'whitespace)
+			 ((b &lt;- comment) 'whitespace))
+		  (comment (((token "/*") b &lt;- comment-body) b)
+			   (((token "//") b &lt;- skip-to-newline) b)
+			   (() 'whitespace))
+		  (comment-body (((token "*/") w &lt;- white) w)
+			       (((? true) comment-body) 'skipped-comment-char))
+		  (skip-to-newline (((? (inverse char-newline?))
+				     skip-to-newline) 'whitespace)
+				   (((? char-newline?) white) 'whitespace))
+		  (array-entries ((a &lt;- array-entries-nonempty) a)
+				 (() '()))
+		  (array-entries-nonempty ((entry &lt;- any white '#\, entries &lt;- array-entries-nonempty) (cons entry entries))
+					  ((entry &lt;- any) (list entry)))
+
+		  ))x
+</pre>
+</div>
+<p>
+Tests:
+</p>
+<div class="org-src-container">
+
+<pre class="src src-scheme">(read-any (open-string-input-port "  /*comment*/ [true, false, null]"))
+;;=&gt; (#t #f #&lt;r6rs:record:json-null&gt;)
+(read-any (open-string-input-port "  /*comment*/ [true, [false, false, true], null]"))
+;;=&gt; (#t (#f #f #t) #&lt;r6rs:record:json-null&gt;)
+</pre>
+</div>
+</div>
+</li></ul>
+</div>
+
+<div id="outline-container-sec-2-3-3" class="outline-4">
+<h4 id="sec-2-3-3">Complete the job and going further</h4>
+<div class="outline-text-4" id="text-2-3-3">
+<p>
+The complete json-parser can also be found in my github repository, it is origined from the json-parser in Tony Garnock-Jones' blog, but I have rewritten some parts of it using my packrat extension and utils lib.
+The parser can be extended to parse ruby serialized objects(similar to json).
+</p>
+</div>
+</div>
+</div>
+<div id="outline-container-sec-2-4" class="outline-3">
+<h3 id="sec-2-4">Conclusion</h3>
+<div class="outline-text-3" id="text-2-4">
+<p>
+Packrat is a powerful parser and in this blog, I briefed its structure and usage by constructing a json parser.
+</p>
+</div>
+</div>
+</div>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes: </h2>
+<div id="text-footnotes">
+
+<div class="footdef"><sup><a id="fn.1" name="fn.1" class="footnum" href="#fnr.1">1</a></sup> <p class="footpara">
+<a href="https://en.wikipedia.org/wiki/Parsing_expression_grammar">https://en.wikipedia.org/wiki/Parsing_expression_grammar</a>
+</p></div>
+
+<div class="footdef"><sup><a id="fn.2" name="fn.2" class="footnum" href="#fnr.2">2</a></sup> <p class="footpara">
+<a href="https://en.wikipedia.org/wiki/Parsing_expression_grammar#Advantages">https://en.wikipedia.org/wiki/Parsing_expression_grammar#Advantages</a>
+</p></div>
+
+<div class="footdef"><sup><a id="fn.3" name="fn.3" class="footnum" href="#fnr.3">3</a></sup> <p class="footpara">
+<a href="https://wiki.call-cc.org/eggref/4/packrat">https://wiki.call-cc.org/eggref/4/packrat</a>
+</p></div>
+
+<div class="footdef"><sup><a id="fn.4" name="fn.4" class="footnum" href="#fnr.4">4</a></sup> <p class="footpara">
+<a href="https://github.com/petercrlane/r7rs-libs.git">https://github.com/petercrlane/r7rs-libs.git</a>
+</p></div>
+
+
+</div>
+</div><div class="post-date">17 Sep 2017</div><h1 class="post-title"><a href="http://chaoseternal.net/hello-world.html">My new blog</a></h1>
 <p>
 After keeping silence for many years, I am starting a new blog, 
 </p>

@@ -157,25 +157,25 @@ This generator read from a given port and produces a stream of (char . char).
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(import (ext packrat)
-	(ext packrat-utils)
-	(rnrs (6))
-	)
+<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">import</span> (ext packrat)
+        (ext packrat-utils)
+        (rnrs (6))
+        )
 
-(define (generator p)
-  (let ((ateof #f)
-	(pos (top-parse-position "&lt;?&gt;")))
-    (lambda ()
-      (if ateof
-	  (values pos #f)
-	  (let ((x (read-char p)))
-	    (if (eof-object? x)
-		(begin
-		  (set! ateof #t)
-		  (values pos (cons #\x04 #\x04)))
-		(let ((old-pos pos))
-		  (set! pos (update-parse-position pos x))
-		  (values old-pos (cons x x)))))))))
+(<span style="color: #1e7bda; font-weight: bold;">define</span> (<span style="color: #58b1f3;">generator</span> p)
+  (<span style="color: #1e7bda; font-weight: bold;">let</span> ((ateof #f)
+        (pos (top-parse-position <span style="color: #e96060;">"&lt;?&gt;"</span>)))
+    (<span style="color: #1e7bda; font-weight: bold;">lambda</span> ()
+      (<span style="color: #1e7bda; font-weight: bold;">if</span> ateof
+          (values pos #f)
+          (<span style="color: #1e7bda; font-weight: bold;">let</span> ((x (read-char p)))
+            (<span style="color: #1e7bda; font-weight: bold;">if</span> (eof-object? x)
+                (<span style="color: #1e7bda; font-weight: bold;">begin</span>
+                  (<span style="color: #1e7bda; font-weight: bold;">set!</span> ateof #t)
+                  (values pos (cons #\x04 #\x04)))
+                (<span style="color: #1e7bda; font-weight: bold;">let</span> ((old-pos pos))
+                  (<span style="color: #1e7bda; font-weight: bold;">set!</span> pos (update-parse-position pos x))
+                  (values old-pos (cons x x)))))))))
 </pre>
 </div>
 </div>
@@ -187,11 +187,11 @@ The parse returns nothing but an <code>eof-object</code> when parse reaches the 
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(define parser
+<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define</span> <span style="color: #58b1f3;">parser</span>
   (packrat-parser any
-		  (any ((white '#\x04) (eof-object)))
-		  (white (((? char-whitespace?) white) 'whitespace)
-			 (((? char-whitespace?)) 'whitespace))))
+                  (any ((white '#\x04) (eof-object)))
+                  (white (((? char-whitespace?) white) 'whitespace)
+                         (((? char-whitespace?)) 'whitespace))))
 </pre>
 </div>
 </div>
@@ -203,16 +203,16 @@ A reader function integrates parser and generator.
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(define (read-any p)
- (let ((result (parser (base-generator-&gt;results (generator p)))))
-   (if (parse-result-successful? result)
+<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define</span> (<span style="color: #58b1f3;">read-any</span> p)
+ (<span style="color: #1e7bda; font-weight: bold;">let</span> ((result (parser (base-generator-&gt;results (generator p)))))
+   (<span style="color: #1e7bda; font-weight: bold;">if</span> (parse-result-successful? result)
        (parse-result-semantic-value result)
-       (error 'json-read "JSON Parse Error"
-	      (let ((e (parse-result-error result)))
-		(list 'json-parse-error
-		      (parse-position-&gt;string (parse-error-position e))
-		      (parse-error-expected e)
-		      (parse-error-messages e)))))))
+       (error 'json-read <span style="color: #e96060;">"JSON Parse Error"</span>
+              (<span style="color: #1e7bda; font-weight: bold;">let</span> ((e (parse-result-error result)))
+                (list 'json-parse-error
+                      (parse-position-&gt;string (parse-error-position e))
+                      (parse-error-expected e)
+                      (parse-error-messages e)))))))
 </pre>
 </div>
 <p>
@@ -220,8 +220,8 @@ Now we can test our first parser:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(read-any (open-string-input-port "       "))
-;;=&gt; #&lt;eof&gt;
+<pre class="src src-scheme">(read-any (open-string-input-port <span style="color: #e96060;">"       "</span>))
+<span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; #&lt;eof&gt;</span>
 </pre>
 </div>
 </div>
@@ -247,21 +247,21 @@ So the rewritten parse is:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(define parser
+<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define</span> <span style="color: #58b1f3;">parser</span>
   (packrat-parser any
-		  (any ((white '#\x04) (eof-object)))
-		  (white (((? char-whitespace?) white) 'whitespace)
-			 (((? char-whitespace?)) 'whitespace)
-			 ((b &lt;- comment) 'whitespace))
-		  (comment (((token "/*") b &lt;- comment-body) b)
-			   (((token "//") b &lt;- skip-to-newline) b)
-			   (() 'whitespace))
-		  (comment-body (((token "*/") w &lt;- white) w)
-			       (((? true) comment-body) 'skipped-comment-char))
-		  (skip-to-newline (((? (inverse char-newline?))
-				     skip-to-newline) 'whitespace)
-				   (((? char-newline?) white) 'whitespace)
-				   )))
+                  (any ((white '#\x04) (eof-object)))
+                  (white (((? char-whitespace?) white) 'whitespace)
+                         (((? char-whitespace?)) 'whitespace)
+                         ((b &lt;- comment) 'whitespace))
+                  (comment (((token <span style="color: #e96060;">"/*"</span>) b &lt;- comment-body) b)
+                           (((token <span style="color: #e96060;">"//"</span>) b &lt;- skip-to-newline) b)
+                           (() 'whitespace))
+                  (comment-body (((token <span style="color: #e96060;">"*/"</span>) w &lt;- white) w)
+                               (((? true) comment-body) 'skipped-comment-char))
+                  (skip-to-newline (((? (inverse char-newline?))
+                                     skip-to-newline) 'whitespace)
+                                   (((? char-newline?) white) 'whitespace)
+                                   )))
 </pre>
 </div>
 <p>
@@ -269,10 +269,10 @@ We can test it:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(read-any (open-string-input-port "  /*comment*/ "))
-;;=&gt; #&lt;eof&gt;
-(read-any (open-string-input-port "   //comment \n"))
-;;=&gt; #&lt;eof&gt;
+<pre class="src src-scheme">(read-any (open-string-input-port <span style="color: #e96060;">"  /*comment*/ "</span>))
+<span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; #&lt;eof&gt;</span>
+(read-any (open-string-input-port <span style="color: #e96060;">"   //comment \n"</span>))
+<span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; #&lt;eof&gt;</span>
 </pre>
 </div>
 </div>
@@ -283,42 +283,42 @@ There are three basic json token: <code>true</code> <code>false</code> <code>nul
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">;; In json, empty list [] and null are distinct objects, 
-;; but in scheme (null? '()) =&gt; #t and (list? '()) =&gt; #t, 
-;; this is the reason why json-null is introduced here.
-(define-record-type json-null)
-;; token is defined in packrat-utils module.
-(define (token str . comp?)
-  (let ((cmp? (if (null? comp?)
-		  char=?
-		  comp?)))
-    (lambda (starting-results)
-      (let loop ((pos 0) (results starting-results))
-	(if (= pos (string-length str))
-	    (make-result str results)
-	    (let ((res-token-value (parse-results-token-value results)))
-	      (if (and res-token-value (cmp? res-token-value (string-ref str pos)))
-		  (loop (+ pos 1) (parse-results-next results))
-		  (make-expected-result (parse-results-position starting-results) str))))))))
-(define parser
+<pre class="src src-scheme"><span style="color: #319448;">;; </span><span style="color: #319448;">In json, empty list [] and null are distinct objects, </span>
+<span style="color: #319448;">;; </span><span style="color: #319448;">but in scheme (null? '()) =&gt; #t and (list? '()) =&gt; #t, </span>
+<span style="color: #319448;">;; </span><span style="color: #319448;">this is the reason why json-null is introduced here.</span>
+(<span style="color: #1e7bda; font-weight: bold;">define-record-type</span> json-null)
+<span style="color: #319448;">;; </span><span style="color: #319448;">token is defined in packrat-utils module.</span>
+(<span style="color: #1e7bda; font-weight: bold;">define</span> (<span style="color: #58b1f3;">token</span> str . comp?)
+  (<span style="color: #1e7bda; font-weight: bold;">let</span> ((cmp? (<span style="color: #1e7bda; font-weight: bold;">if</span> (null? comp?)
+                  char=?
+                  comp?)))
+    (<span style="color: #1e7bda; font-weight: bold;">lambda</span> (starting-results)
+      (<span style="color: #1e7bda; font-weight: bold;">let</span> <span style="color: #58b1f3;">loop</span> ((pos 0) (results starting-results))
+        (<span style="color: #1e7bda; font-weight: bold;">if</span> (= pos (string-length str))
+            (make-result str results)
+            (<span style="color: #1e7bda; font-weight: bold;">let</span> ((res-token-value (parse-results-token-value results)))
+              (<span style="color: #1e7bda; font-weight: bold;">if</span> (<span style="color: #1e7bda; font-weight: bold;">and</span> res-token-value (cmp? res-token-value (string-ref str pos)))
+                  (loop (+ pos 1) (parse-results-next results))
+                  (make-expected-result (parse-results-position starting-results) str))))))))
+(<span style="color: #1e7bda; font-weight: bold;">define</span> <span style="color: #58b1f3;">parser</span>
   (packrat-parser any
-		  (any
-		   ((white (token "true")) #t)
-		   ((white (token "false")) #f)
-		   ((white (token "null")) (make-json-null))
-		   ((white '#\x04) (eof-object)))
-		  (white (((? char-whitespace?) white) 'whitespace)
-			 (((? char-whitespace?)) 'whitespace)
-			 ((b &lt;- comment) 'whitespace))
-		  (comment (((token "/*") b &lt;- comment-body) b)
-			   (((token "//") b &lt;- skip-to-newline) b)
-			   (() 'whitespace))
-		  (comment-body (((token "*/") w &lt;- white) w)
-			       (((? true) comment-body) 'skipped-comment-char))
-		  (skip-to-newline (((? (inverse char-newline?))
-				     skip-to-newline) 'whitespace)
-				   (((? char-newline?) white) 'whitespace)
-				   )))
+                  (any
+                   ((white (token <span style="color: #e96060;">"true"</span>)) #t)
+                   ((white (token <span style="color: #e96060;">"false"</span>)) #f)
+                   ((white (token <span style="color: #e96060;">"null"</span>)) (make-json-null))
+                   ((white '#\x04) (eof-object)))
+                  (white (((? char-whitespace?) white) 'whitespace)
+                         (((? char-whitespace?)) 'whitespace)
+                         ((b &lt;- comment) 'whitespace))
+                  (comment (((token <span style="color: #e96060;">"/*"</span>) b &lt;- comment-body) b)
+                           (((token <span style="color: #e96060;">"//"</span>) b &lt;- skip-to-newline) b)
+                           (() 'whitespace))
+                  (comment-body (((token <span style="color: #e96060;">"*/"</span>) w &lt;- white) w)
+                               (((? true) comment-body) 'skipped-comment-char))
+                  (skip-to-newline (((? (inverse char-newline?))
+                                     skip-to-newline) 'whitespace)
+                                   (((? char-newline?) white) 'whitespace)
+                                   )))
 </pre>
 </div>
 <p>
@@ -326,12 +326,12 @@ We can test them:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(read-any (open-string-input-port "  /*comment*/ true"))
-;;=&gt; #t
-(read-any (open-string-input-port "   //comment \n false"))
-;;=&gt; #f
-(read-any (open-string-input-port "   //comment \n null   "))
-;;=&gt; #&lt;r6rs:record:json-null&gt;
+<pre class="src src-scheme">(read-any (open-string-input-port <span style="color: #e96060;">"  /*comment*/ true"</span>))
+<span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; #t</span>
+(read-any (open-string-input-port <span style="color: #e96060;">"   //comment \n false"</span>))
+<span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; #f</span>
+(read-any (open-string-input-port <span style="color: #e96060;">"   //comment \n null   "</span>))
+<span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; #&lt;r6rs:record:json-null&gt;</span>
 </pre>
 </div>
 </div>
@@ -342,32 +342,32 @@ Lists are such a struct which contains valid json structures.
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(define parser
+<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define</span> <span style="color: #58b1f3;">parser</span>
   (packrat-parser any
-		  (any
-		   ((white '#\[ entries &lt;- array-entries white '#\]) entries)
-		   ;; list: [ json, json+ ] | []
-		   ((white (token "true")) #t)
-		   ((white (token "false")) #f)
-		   ((white (token "null")) (make-json-null))
-		   ((white '#\x04) (eof-object)))
-		  (white (((? char-whitespace?) white) 'whitespace)
-			 (((? char-whitespace?)) 'whitespace)
-			 ((b &lt;- comment) 'whitespace))
-		  (comment (((token "/*") b &lt;- comment-body) b)
-			   (((token "//") b &lt;- skip-to-newline) b)
-			   (() 'whitespace))
-		  (comment-body (((token "*/") w &lt;- white) w)
-			       (((? true) comment-body) 'skipped-comment-char))
-		  (skip-to-newline (((? (inverse char-newline?))
-				     skip-to-newline) 'whitespace)
-				   (((? char-newline?) white) 'whitespace))
-		  (array-entries ((a &lt;- array-entries-nonempty) a)
-				 (() '()))
-		  (array-entries-nonempty ((entry &lt;- any white '#\, entries &lt;- array-entries-nonempty) (cons entry entries))
-					  ((entry &lt;- any) (list entry)))
+                  (any
+                   ((white '#\[ entries &lt;- array-entries white '#\]) entries)
+                   <span style="color: #319448;">;; </span><span style="color: #319448;">list: [ json, json+ ] | []</span>
+                   ((white (token <span style="color: #e96060;">"true"</span>)) #t)
+                   ((white (token <span style="color: #e96060;">"false"</span>)) #f)
+                   ((white (token <span style="color: #e96060;">"null"</span>)) (make-json-null))
+                   ((white '#\x04) (eof-object)))
+                  (white (((? char-whitespace?) white) 'whitespace)
+                         (((? char-whitespace?)) 'whitespace)
+                         ((b &lt;- comment) 'whitespace))
+                  (comment (((token <span style="color: #e96060;">"/*"</span>) b &lt;- comment-body) b)
+                           (((token <span style="color: #e96060;">"//"</span>) b &lt;- skip-to-newline) b)
+                           (() 'whitespace))
+                  (comment-body (((token <span style="color: #e96060;">"*/"</span>) w &lt;- white) w)
+                               (((? true) comment-body) 'skipped-comment-char))
+                  (skip-to-newline (((? (inverse char-newline?))
+                                     skip-to-newline) 'whitespace)
+                                   (((? char-newline?) white) 'whitespace))
+                  (array-entries ((a &lt;- array-entries-nonempty) a)
+                                 (() '()))
+                  (array-entries-nonempty ((entry &lt;- any white '#\, entries &lt;- array-entries-nonempty) (cons entry entries))
+                                          ((entry &lt;- any) (list entry)))
 
-		  ))x
+                  ))x
 </pre>
 </div>
 <p>
@@ -375,10 +375,10 @@ Tests:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(read-any (open-string-input-port "  /*comment*/ [true, false, null]"))
-;;=&gt; (#t #f #&lt;r6rs:record:json-null&gt;)
-(read-any (open-string-input-port "  /*comment*/ [true, [false, false, true], null]"))
-;;=&gt; (#t (#f #f #t) #&lt;r6rs:record:json-null&gt;)
+<pre class="src src-scheme">(read-any (open-string-input-port <span style="color: #e96060;">"  /*comment*/ [true, false, null]"</span>))
+<span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; (#t #f #&lt;r6rs:record:json-null&gt;)</span>
+(read-any (open-string-input-port <span style="color: #e96060;">"  /*comment*/ [true, [false, false, true], null]"</span>))
+<span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; (#t (#f #f #t) #&lt;r6rs:record:json-null&gt;)</span>
 </pre>
 </div>
 </div>

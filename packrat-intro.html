@@ -185,13 +185,44 @@ This generator read from a given port and produces a stream of (char . char).
 We can start from a very simple parser which just reads arbitary number of white-spaces.
 The parse returns nothing but an <code>eof-object</code> when parse reaches the end of file.
 </p>
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="left" />
+
+<col  class="left" />
+
+<col  class="left" />
+</colgroup>
+<tbody>
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">&#xa0;</td>
+<td class="left">syntax</td>
+</tr>
+
+<tr>
+<td class="left">any</td>
+<td class="left">=</td>
+<td class="left">white eof</td>
+</tr>
+
+<tr>
+<td class="left">white</td>
+<td class="left">=</td>
+<td class="left">ws*</td>
+</tr>
+</tbody>
+</table>
+
 <div class="org-src-container">
 
 <pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define</span> <span style="color: #58b1f3;">parser</span>
   (packrat-parser any
                   (any ((white '#\x04) (eof-object)))
                   (white (((? char-whitespace?) white) 'whitespace)
-                         (((? char-whitespace?)) 'whitespace))))
+                         (() 'whitespace))))
 </pre>
 </div>
 </div>
@@ -203,25 +234,21 @@ A reader function integrates parser and generator.
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define</span> (<span style="color: #58b1f3;">read-any</span> p)
- (<span style="color: #1e7bda; font-weight: bold;">let</span> ((result (parser (base-generator-&gt;results (generator p)))))
-   (<span style="color: #1e7bda; font-weight: bold;">if</span> (parse-result-successful? result)
-       (parse-result-semantic-value result)
-       (error 'json-read <span style="color: #e96060;">"JSON Parse Error"</span>
-              (<span style="color: #1e7bda; font-weight: bold;">let</span> ((e (parse-result-error result)))
-                (list 'json-parse-error
-                      (parse-position-&gt;string (parse-error-position e))
-                      (parse-error-expected e)
-                      (parse-error-messages e)))))))
-</pre>
-</div>
-<p>
+<pre class="src src-scheme">  (<span style="color: #1e7bda; font-weight: bold;">define</span> (<span style="color: #58b1f3;">read-any</span> p)
+   (<span style="color: #1e7bda; font-weight: bold;">let</span> ((result (parser (base-generator-&gt;results (generator p)))))
+     (<span style="color: #1e7bda; font-weight: bold;">if</span> (parse-result-successful? result)
+         (parse-result-semantic-value result)
+         (error 'json-read <span style="color: #e96060;">"JSON Parse Error"</span>
+                (<span style="color: #1e7bda; font-weight: bold;">let</span> ((e (parse-result-error result)))
+                  (list 'json-parse-error
+                        (parse-position-&gt;string (parse-error-position e))
+                        (parse-error-expected e)
+                        (parse-error-messages e)))))))
+#+nend_src
 Now we can test our first parser:
-</p>
-<div class="org-src-container">
-
-<pre class="src src-scheme">(read-any (open-string-input-port <span style="color: #e96060;">"       "</span>))
-<span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; #&lt;eof&gt;</span>
+#+begin_src scheme
+  (read-any (open-string-input-port <span style="color: #e96060;">"    "</span>))
+  <span style="color: #319448;">;;</span><span style="color: #319448;">=&gt; #&lt;eof&gt;</span>
 </pre>
 </div>
 </div>
@@ -243,7 +270,7 @@ In json, two kinds of comments are accepted:
 </li>
 </ul>
 <p>
-So the rewritten parse is:
+So the rewritten parser is:
 </p>
 <div class="org-src-container">
 
@@ -251,7 +278,6 @@ So the rewritten parse is:
   (packrat-parser any
                   (any ((white '#\x04) (eof-object)))
                   (white (((? char-whitespace?) white) 'whitespace)
-                         (((? char-whitespace?)) 'whitespace)
                          ((b &lt;- comment) 'whitespace))
                   (comment (((token <span style="color: #e96060;">"/*"</span>) b &lt;- comment-body) b)
                            (((token <span style="color: #e96060;">"//"</span>) b &lt;- skip-to-newline) b)
@@ -308,7 +334,6 @@ There are three basic json token: <code>true</code> <code>false</code> <code>nul
                    ((white (token <span style="color: #e96060;">"null"</span>)) (make-json-null))
                    ((white '#\x04) (eof-object)))
                   (white (((? char-whitespace?) white) 'whitespace)
-                         (((? char-whitespace?)) 'whitespace)
                          ((b &lt;- comment) 'whitespace))
                   (comment (((token <span style="color: #e96060;">"/*"</span>) b &lt;- comment-body) b)
                            (((token <span style="color: #e96060;">"//"</span>) b &lt;- skip-to-newline) b)
@@ -322,7 +347,7 @@ There are three basic json token: <code>true</code> <code>false</code> <code>nul
 </pre>
 </div>
 <p>
-We can test them:
+We can test these tokens:
 </p>
 <div class="org-src-container">
 
@@ -340,6 +365,59 @@ We can test them:
 <p>
 Lists are such a struct which contains valid json structures.
 </p>
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="left" />
+
+<col  class="left" />
+
+<col  class="left" />
+</colgroup>
+<tbody>
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">&#xa0;</td>
+<td class="left">syntax</td>
+</tr>
+
+<tr>
+<td class="left">any</td>
+<td class="left">=</td>
+<td class="left">list</td>
+</tr>
+
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">&#xa0;</td>
+<td class="left">token(true,false,null)</td>
+</tr>
+
+<tr>
+<td class="left">List</td>
+<td class="left">=</td>
+<td class="left">[]</td>
+</tr>
+
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">&#xa0;</td>
+<td class="left">[any]</td>
+</tr>
+
+<tr>
+<td class="left">&#xa0;</td>
+<td class="left">&#xa0;</td>
+<td class="left">[any,+]</td>
+</tr>
+</tbody>
+</table>
+<ul class="org-ul">
+<li>white-spaces are ignored here
+</li>
+</ul>
+
 <div class="org-src-container">
 
 <pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define</span> <span style="color: #58b1f3;">parser</span>
@@ -352,7 +430,6 @@ Lists are such a struct which contains valid json structures.
                    ((white (token <span style="color: #e96060;">"null"</span>)) (make-json-null))
                    ((white '#\x04) (eof-object)))
                   (white (((? char-whitespace?) white) 'whitespace)
-                         (((? char-whitespace?)) 'whitespace)
                          ((b &lt;- comment) 'whitespace))
                   (comment (((token <span style="color: #e96060;">"/*"</span>) b &lt;- comment-body) b)
                            (((token <span style="color: #e96060;">"//"</span>) b &lt;- skip-to-newline) b)
@@ -389,7 +466,8 @@ Tests:
 <h4 id="sec-2-3-3">Complete the job and going further</h4>
 <div class="outline-text-4" id="text-2-3-3">
 <p>
-The complete json-parser can also be found in my github repository, it is origined from the json-parser in Tony Garnock-Jones' blog, but I have rewritten some parts of it using my packrat extension and utils lib.
+To complete this json parser, objects, strings and numbers are also needed to be processed, these jobs can be easily done by extending the parser above.
+The complete json-parser can be found in my github repository, it is origined from the json-parser in Tony Garnock-Jones' blog, but I have rewritten some parts of it using my packrat extension and utils lib.
 The parser can be extended to parse ruby serialized objects(similar to json).
 </p>
 </div>

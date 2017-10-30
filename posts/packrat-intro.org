@@ -63,12 +63,16 @@
 **** Parser for Whitespace 
      We can start from a very simple parser which just reads arbitary number of white-spaces.
      The parse returns nothing but an ~eof-object~ when parse reaches the end of file.
+     |       |   | syntax    |
+     | any   | = | white eof |
+     | white | = | ws*       |
+
      #+begin_src scheme
        (define parser
 	 (packrat-parser any
 			 (any ((white '#\x04) (eof-object)))
 			 (white (((? char-whitespace?) white) 'whitespace)
-				(((? char-whitespace?)) 'whitespace))))
+				(() 'whitespace))))
      #+end_src
 
 **** A reader function
@@ -84,12 +88,11 @@
   			     (parse-position->string (parse-error-position e))
   			     (parse-error-expected e)
   			     (parse-error-messages e)))))))
-     #+end_src
+     #+nend_src
      Now we can test our first parser:
      #+begin_src scheme
-       (read-any (open-string-input-port "       "))
+       (read-any (open-string-input-port "    "))
        ;;=> #<eof>
-
      #+end_src
 
 *** Going Further
@@ -98,13 +101,12 @@
      In json, two kinds of comments are accepted: 
      - Start with ~//~, end with newline, or
      - surrounded by ~/*~ and ~*/~ pair.
-     So the rewritten parse is:
+     So the rewritten parser is:
      #+begin_src scheme
        (define parser
 	 (packrat-parser any
 			 (any ((white '#\x04) (eof-object)))
 			 (white (((? char-whitespace?) white) 'whitespace)
-				(((? char-whitespace?)) 'whitespace)
 				((b <- comment) 'whitespace))
 			 (comment (((token "/*") b <- comment-body) b)
 				  (((token "//") b <- skip-to-newline) b)
@@ -151,7 +153,6 @@
 			  ((white (token "null")) (make-json-null))
 			  ((white '#\x04) (eof-object)))
 			 (white (((? char-whitespace?) white) 'whitespace)
-				(((? char-whitespace?)) 'whitespace)
 				((b <- comment) 'whitespace))
 			 (comment (((token "/*") b <- comment-body) b)
 				  (((token "//") b <- skip-to-newline) b)
@@ -163,7 +164,7 @@
 					  (((? char-newline?) white) 'whitespace)
 					  )))
      #+end_src
-     We can test them:
+     We can test these tokens:
      #+begin_src scheme
        (read-any (open-string-input-port "  /*comment*/ true"))
        ;;=> #t
@@ -174,6 +175,14 @@
      #+end_src
 **** Recursive structure: List
      Lists are such a struct which contains valid json structures.
+     |      |   | syntax                 |
+     | any  | = | list                   |
+     |      |   | token(true,false,null) |
+     | List | = | []                     |
+     |      |   | [any]                  |
+     |      |   | [any,+]                |
+     * white-spaces are ignored here
+
      #+begin_src scheme
        (define parser
 	 (packrat-parser any
@@ -185,7 +194,6 @@
 			  ((white (token "null")) (make-json-null))
 			  ((white '#\x04) (eof-object)))
 			 (white (((? char-whitespace?) white) 'whitespace)
-				(((? char-whitespace?)) 'whitespace)
 				((b <- comment) 'whitespace))
 			 (comment (((token "/*") b <- comment-body) b)
 				  (((token "//") b <- skip-to-newline) b)
@@ -211,7 +219,8 @@
      #+end_src
 
 *** Complete the job and going further
-    The complete json-parser can also be found in my github repository, it is origined from the json-parser in Tony Garnock-Jones' blog, but I have rewritten some parts of it using my packrat extension and utils lib.
+    To complete this json parser, objects, strings and numbers are also needed to be processed, these jobs can be easily done by extending the parser above.
+    The complete json-parser can be found in my github repository, it is origined from the json-parser in Tony Garnock-Jones' blog, but I have rewritten some parts of it using my packrat extension and utils lib.
     The parser can be extended to parse ruby serialized objects(similar to json).
 ** Conclusion
    Packrat is a powerful parser and in this blog, I briefed its structure and usage by constructing a json parser.

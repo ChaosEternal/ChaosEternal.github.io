@@ -1,0 +1,196 @@
+#+TITLE: Scheme Syntax-Case usage
+#+DATE: <2017-10-29 Sun>
+
+* Macros of The Scheme Programming Language
+  Scheme has a powerful macro system, in most scheme implementation, only very limited primitive forms
+  are implemented and others are derived by using macros. For example, r5rs standard defines 23 syntactic constructs, 11 of them can be defined using other more fundamental ones. [1]
+  
+  There are many macro systems exist in Scheme's world, ~define-macro~, ~syntax-rules~, ~syntax-case~ are commonly adopted.
+
+* The ~define-macro~ system
+  ~define-macro~ AKA ~defmacro~ is the traditional way of defining macro in lisp world. Macros defined by ~define-macro~ are roughly procedures transform(expand) input form to another s-expression, 
+the transformation itself usually be called "applying the macro". Generally speaking, the body of ~define-macro~ can be any expression which returns a valid scheme expression on evaluation, 
+and the arguments of ~define-macro~ are also the arguments of the expression(if seen as body of a lambda).
+
+  For example, this macro:
+  #+begin_src scheme
+     (define-macro (when cond exp . rest)
+       `(if ,cond
+            (begin ,exp . ,rest)))
+  #+end_src
+  will define a macro named ~when~.
+  And on applying this macro, such form ~(when (> n 0) exp1 exp2)~ will be transformed (expanded) as:
+  #+begin_src scheme
+     (if (> n 0)
+         (begin exp1 
+                exp2))
+  #+end_src
+  This transformation done by macro ~when~ is just filling out a template using parameters of ~when~: ~(> n 0)~, ~exp1~ and ~(exp2)~. Or say, the macro generates new codes.
+
+  Because the nature of macros, code generation, macros are very powerful tools in lisp languages as well as in Scheme.
+* Hygienic problem of ~define-macro~
+  The ~define-macro~ macro system is so rough that it does not capture binding of any symbols appeared in macro definition, and these symbols' meaning can be changed when the macros applying,
+this will make the macros' behavior be very wierd if they are used with careless.
+
+  Consider the macro ~when~ defined in the previous secrtion, in the scenario demostraded here: 
+  #+begin_src scheme
+  (let ((begin list))
+    (when #f 1 2))
+  #+end_src
+  the code will be equivalent of:
+  #+begin_src scheme
+  (if #t
+      (list 1 2))
+  #+end_src
+  This is because the ~define-macro~ only defines the form that ~when~ will be expanded but not the binding of symbols, these symbols' meaning can be altered in different context.
+  
+  Such problem is called the hygienic problem.
+
+  Scheme implatations which have ~define-macro~ system also provide ~gensym~ or similar procedures which can generate symbols on the fly to mimic(partially) the hygienic problem of the ~define-macro~ system.
+  For example, this code defined a naive macro ~swap!~ which swaps value of two variables:
+  #+begin_src scheme
+    (define-macro (swap! o1 o2)
+      `(let ((tmp ,o1))
+	 (set! ,o1 ,o2)
+	 (set! ,o2 tmp)))
+  #+end_src 
+  If one uses this marco like ~(swap! tmp something)~ or ~(swap! something tmp)~, the symbol ~tmp~ will be captured and the result is incorrect.
+  This macro can be rewritten using ~gensym~:
+  #+begin_src scheme
+    (define-macro (swap1 o1 o2)
+      (let ((tmp (gensym)))
+	`(let ((,tmp ,o1))
+	   (set! ,o1 ,o2)
+	   (set! ,o2 ,tmp))))
+  #+end_src
+  In this version of ~swap!~, the danger of unwanted symbol capture will not exist.
+ 
+* The ~syntax-rules~ system
+  ~syntax-rules~ is a solution to hygienic problems. Since it is adopted in the R5RS, it is wildly implemented in different Scheme implementations.
+  ~syntax-rules~ uses pattern matching to construct macros.
+  
+  With ~syntax-rules~, the macro ~when~ can be re-written as:
+  #+begin_src scheme
+  (define-syntax when
+    (syntax-rules ()
+      ((when cond exp1 ...)
+       (if cond
+           (begin exp1 ...)))))
+  #+end_src
+  
+  The syntax of using ~syntax-rules~ is ~(syntax-rules literals (pattern template) ...)~, the macro will replace evey matching pattern to the corresponding template.
+  
+  The major difference between syntax-rules and define-marco is that ~syntax-rules~ garentees hygienicness, in fact, all symbols occure in ~template~ has definite meaning: if the symbol is matched in pattern, 
+the pattern value is captured, else the binding of symbols in the environment is captured. Thus these symbols' meaning remains the same wherever they are used, this is hygienicness of macro.
+
+  ~syntax-rules~ is very useful, but it also has limitations[2][3], it does not provides ways to modify the templates, there exists some cases where it is harder to write with ~syntax-rules~ than define-macro.
+  For more details about ~syntax-rules~ system, this article[4] is very useful.
+
+* The ~syntax-case~ system
+  The ~syntax-case~ system is somehow similar to ~gensym~ approach, but it is an extreme. It has the same power as ~define-macro~ but retains hygenicness.
+  Using ~syntax-case~, the macro ~when~ can be rewritten as:
+  #+begin_src scheme
+    (define-syntax when
+      (lambda (stx)
+	(syntax-case stx ()
+	    ((_ cond exp1 . exp2)
+	     #'(if cond
+		   (begin exp1 . exp2))))))
+  #+end_src
+  Here, the form ~#'(if cond (begin exp1 . exp2))~ is the corresponding part of ~`(if ,cond (begin ,exp . ,rest))~ of ~define-macro~, they have similar structure. The difference
+here is only that the body of syntax-case should return a syntax object, not a mere list as define-macro returns. But in ~syntax-case~, symbol ~if~ and ~begin~ was captured the definition of defining environment while ~cond~, ~exp1~ and ~exp2~ are replaced with applying 
+arguments when the macro is applied, since they appear in the pattern form of ~syntax-case~. This is how hygenicness is archieved.
+
+  The macro ~swap!~:
+  #+begin_src scheme
+    (define-syntax swap!
+      (lambda (stx)
+	(syntax-case stx ()
+	  ((_ op1 op2)
+	   #'(let ((tmp op1))
+	       (set! op1 op2)
+	       (set! op2 tmp))))))
+  #+end_src
+  The expanded result(using 'expand' of ChezScheme ~(expand '(swap! var1 var2))~):
+  #+begin_src scheme
+    (let ([#{tmp cvbrbh0gnpwjvy0dl1m1nb-1} var1])
+      (set! var1 var2)
+      (set! var2 #{tmp cvbrbh0gnpwjvy0dl1m1nb-1}))
+  #+end_src
+  It is shown that hygenicness is automatically done by the same way of ~gensym~.
+
+  The 'syntax' objects is a special type objects defined in scheme implementations which has syntax-case system ported. They can be converted to scheme objects on demand, and when returned by syntax-case, 
+the macro expansion is done.
+
+  The following examples shows a more complex usage of syntax-case, upon expansion, the macro will be expanded to n-th fibonacci number:
+  #+begin_src scheme
+    ;; this macro using iterative approach
+    (define-syntax fib
+      (lambda (x)
+	(syntax-case x ()
+	  ((fib n)
+	   #'(fib n 1 0))
+	  ((fib 0 num2 num3) (syntax->datum #'num2))
+	  ((fib num1 num2 num3)
+	   (with-syntax ((n (datum->syntax #'fib
+					   (- (syntax->datum #'num1)
+					      1)))
+			 (n2 (datum->syntax #'fib
+					    (+ (syntax->datum #'num2)
+					       (syntax->datum #'num3))))
+			 (n3 (syntax num2)))
+	     #'(fib n n2 n3))))))
+    ;; this macro is recursive and much slower
+    (define-syntax fib2
+      (lambda (x)
+	(syntax-case x ()
+	  ((fib2 0)
+	   #'1)
+	  ((fib2 1)
+	   #'1)
+	  ((fib2 n)
+	   (with-syntax ((n2 (datum->syntax #'fib2
+					    (- (syntax->datum #'n) 1)))
+			 (n3 (datum->syntax #'fib2
+					    (- (syntax->datum #'n) 2))))
+	     #'(+ (fib2 n2) (fib2 n3)))))))
+  #+end_src
+
+  The ~syntax-case~ system is so powerful that even the ~syntax-rules~ system is just a derivation of it[5]. 
+  
+  In rencent Elixr[6] release(1.2), a ~with~[7] clause is introduced to provide guarded execution of some code, the same effect can be easily archieved in scheme by using macros:
+  #+begin_src scheme
+  (define-syntax and-let*-values-check
+    (lambda (stx)
+      (syntax-case stx (else)
+	((kw (?bind0 ?bind1 ...) ?body0 ... (else ?expr0 ...))
+	 (syntax-case #'?bind0 ()
+	   (((?b0 ?b1 ...) ?exp)
+	    (let* ((?check-b0 (car (generate-temporaries (list #'?b0)))))
+	      #`(let-values (((#,?check-b0 ?b1 ...) ?exp))
+		  (if (equal? #,?check-b0 ?b0)
+		      (kw (?bind1 ...) ?body0 ...)
+		      (begin ?expr0 ...)))))))
+	((_ () ?body0 ... (else ?expr0 ...))
+	 #'(begin ?body0 ...))
+	((kw (?bind0 ...) ?body0 ...)
+	 #'(kw (?bind0 ...) ?body0 ... (else #f))))))
+  #+end_src
+
+* Conclusions and more
+  In scheme's world, the word 'syntax' mostly refers to two things, one is the lexical structure of program, which defined by the reader, 
+usually they are s-expressions or converted to s-expressions by reader, other one is the context structure of a program, which defines how program is executed.
+Due to the powerfulness of s-expressions, the first meaning of syntax is insignificant compare to the second one. And with the macro system, one can easily extend the
+ syntax scheme, just as shown in [5]. The lastest example of previous section even shows how to borrow syntax-sugars from other languages. Yes, syntax-sugar, as its name, 
+they are not essentials but sugars just make life happier. And even type systems can be defined using macros[8].
+  
+
+
+[1] https://en.wikipedia.org/wiki/Scheme_(programming_language)#Minimalism
+[2] https://groups.google.com/forum/#!msg/comp.lang.scheme/gKdyiCnf54E/sxo_gYLvWuUJ;context-place=msg/comp.lang.scheme/Alkectj2ge0/N65W9KNd6LcJ
+[3] https://www.gnu.org/software/guile/manual/html_node/Syntax-Rules.html
+[4] https://hipster.home.xs4all.nl/lib/scheme/gauche/define-syntax-primer.txt
+[5] http://www.cs.indiana.edu/~dyb/pubs/tr356.pdf
+[6] https://elixir-lang.github.io
+[7] http://learningelixir.joekain.com/learning-elixir-with/
+[8] http://www.ccs.neu.edu/home/stchang/popl2017/

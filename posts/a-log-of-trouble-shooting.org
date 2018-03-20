@@ -1,0 +1,105 @@
+#+TITLE: A Log of Trouble Shooting
+#+DATE: <2017-10-29 Sun>
+
+* The problem
+This story happend in real world, but the customer name is faked.
+
+One of my customers, The Big Customer(in abbrev, TBC), is running our product.
+
+One day they come to me describe the following wierd phenomeon:
+They observed a lot of ip packets send from containers in one component of our product, which is a virutal machine of a cluster, 
+to other servers without doing SNAT(MASQUERADE), 
+the receiving server is not a member of the cluster. As a result, these packets are then getting bounced into TBC’s core network, and triggering alerts.
+The containers are hosting user applications, these containers are using internal ip addresses (usually 10.254.x.x). 
+When processes inside these containers are going to connect outside servers, the packets need to be SNATed by the hosting virtual machine,
+this is done by a MASQUERADE rule in iptables’ “nat” table. On the problematic system, 
+a lot of packets with TCP flag FIN set get send out from container with source ip unchanged, the MASQUERADE rule does not take effect.
+When these packets reach the server, they will be considered invalid packets due to source address unrecognized, 
+hence RST packets are emitted towards the source address, in this case, the 10.254.x.x addresses, 
+and these packets get routed into TBC’s core network and trigger alerts.
+As stated by TBC’s administrator of their core networking, they have been receiving these weird alerts for a long time, 
+and only recently can they traced down the origin of these packets, which is send by virtual machines of our product.
+
+* Analysis
+** Checking connection status
+In container, lots of tcp-connections are in CLOSE-WAIT state.
+** Packet analysis using tcpdump
+Packet analysis using tcpdump on the virtual machine:
+12 conversations analyzed , three of them are partially captured, 5 conversations are erroneous.  The summary:
+
+| SourceIP/Port         |       DestIP/Port | Connection status             | Remark                                                      |
+| 10.254.0.54.38758     | xxx.xxx.yyy.yyy.8088 | Partially Captured            | SYN packet not seen                                         |
+| xxx.xxx.xxx.xxx.39474 | xxx.xxx.yyy.yyy.8088 | Partially Captured, erroneous | SYN Packet not seen. FIN packet from client not masqueraded |
+| xxx.xxx.xxx.xxx.40162 | xxx.xxx.yyy.yyy.8088 | No error                      |                                                             |
+| xxx.xxx.xxx.xxx.40888 | xxx.xxx.yyy.yyy.8088 | No error                      |                                                             |
+| xxx.xxx.xxx.xxx.41740 | xxx.xxx.yyy.yyy.8088 | Erroneous                     | FIN packet from client not masqueraded                      |
+| xxx.xxx.xxx.xxx.42478 | xxx.xxx.yyy.yyy.8088 | Erroneous                     | FIN packet from client not masqueraded                      |
+| xxx.xxx.xxx.xxx.43218 | xxx.xxx.yyy.yyy.8088 | No error                      |                                                             |
+| xxx.xxx.xxx.xxx.43994 | xxx.xxx.yyy.yyy.8088 | No error                      |                                                             |
+| xxx.xxx.xxx.xxx.44710 | xxx.xxx.yyy.yyy.8088 | Erroneous                     | FIN packet from client not masqueraded                      |
+| xxx.xxx.xxx.xxx.45426 | xxx.xxx.yyy.yyy.8088 | Erroneous                     | FIN packet from client not masqueraded                      |
+| xxx.xxx.xxx.xxx.46244 | xxx.xxx.yyy.yyy.8088 | No error                      |                                                             |
+| xxx.xxx.xxx.xxx.46964 | xxx.xxx.yyy.yyy.8088 | Partially Captured            | FIN Packet not seen from both side.                         |
+
+Inspecting a typical erroneous conversation:
+#+begin_src
+15:00:25.416697 IP xxx.xxx.xxx.xxx.41740 > xxx.xxx.yyy.yyy.8088: Flags [S], seq 3714847479, win 28280, options [mss 1414,sackOK,TS val 2156888755 ecr 0,nop,wscale 7], length 0
+15:00:25.416995 IP xxx.xxx.yyy.yyy.8088 > xxx.xxx.xxx.xxx.41740: Flags [S.], seq 4230280871, ack 3714847480, win 28960, options [mss 1460,sackOK,TS val 823948244 ecr 2156888755,nop,wscale 7], length 0
+15:00:25.417080 IP xxx.xxx.xxx.xxx.41740 > xxx.xxx.yyy.yyy.8088: Flags [.], ack 4230280872, win 221, options [nop,nop,TS val 2156888755 ecr 823948244], length 0
+15:00:25.417555 IP xxx.xxx.xxx.xxx.41740 > xxx.xxx.yyy.yyy.8088: Flags [P.], seq 3714847480:3714848324, ack 4230280872, win 221, options [nop,nop,TS val 2156888755 ecr 823948244], length 844
+15:00:25.417805 IP xxx.xxx.yyy.yyy.8088 > xxx.xxx.xxx.xxx.41740: Flags [.], ack 3714848324, win 240, options [nop,nop,TS val 823948245 ecr 2156888755], length 0
+15:00:25.420292 IP xxx.xxx.yyy.yyy.8088 > xxx.xxx.xxx.xxx.41740: Flags [P.], seq 4230280872:4230281169, ack 3714848324, win 240, options [nop,nop,TS val 823948245 ecr 2156888755], length 297
+15:00:25.420596 IP xxx.xxx.xxx.xxx.41740 > xxx.xxx.yyy.yyy.8088: Flags [.], ack 4230281169, win 230, options [nop,nop,TS val 2156888756 ecr 823948245], length 0
+15:00:46.760856 IP xxx.xxx.yyy.yyy.8088 > xxx.xxx.xxx.xxx.41740: Flags [F.], seq 4230281169, ack 3714848324, win 240, options [nop,nop,TS val 823953579 ecr 2156888756], length 0
+
+15:00:46.800503 IP xxx.xxx.xxx.xxx.41740 > xxx.xxx.yyy.yyy.8088: Flags [.], ack 4230281170, win 230, options [nop,nop,TS val 2156894101 ecr 823953579], length 0
+~~~~~~~~~~~~~~~
+15:03:21.948707 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156932888 ecr 823953579], length 0
+~~~~~~~~~~~~~~~
+15:03:22.152480 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156932939 ecr 823953579], length 0
+15:03:22.356643 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156932990 ecr 823953579], length 0
+15:03:22.764540 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156933092 ecr 823953579], length 0
+15:03:23.583041 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156933296 ecr 823953579], length 0
+15:03:25.216453 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156933705 ecr 823953579], length 0
+15:03:28.492444 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156934524 ecr 823953579], length 0
+15:03:35.036477 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156936160 ecr 823953579], length 0
+15:03:48.124523 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156939432 ecr 823953579], length 0
+15:04:14.332468 IP 10.254.0.54.41740 > xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156945984 ecr 823953579], length 0
+#+end_src
+The evidence that all these packets are belong to the same conversation is the fact that all sequence numbers are continuous. 
+The marked two lines show that the FIN packet from client side is sent more than 2 minutes later
+ than the client side ACKs the FIN packet sent from server side. 
+This is the nf_conntrack_tcp_timeout_close_wait settings on the virtual machine:
+this timeout is set to 60 second.
+
+When conntrack module of the virtual machine see both server side FIN packet(SEQ 4230281169) and client’s ACK packet to the FIN (ACK 4230281170), 
+it will mark the connect as CLOSE_WAIT state, the entry describing the connection will be deleted after 60 seconds(nf_conntrack_tcp_timeout_close_wait).
+Hence when client side sends out a FIN packet after almost 2 minutes (SEQ 3714848324), 
+the packet does not match any conntrack entry, and will be marked as an INVALID packet. 
+SNAT(MASQUERAD in this case) rule of iptables depends on conntrack to remember each connection’s state, 
+then INVALID packets will not be masqueraded, such packet will just be simply routed to its destination. 
+When the server side receives these un-masqueraded packets, 
+it does not have any information about the src address of the packets and then bounces these packet to their src address with RST flag. 
+Client will not receive any response of the FIN packets, and retries until another timeout occurs. 
+Each of FIN packet resent by client will cause a bounced packet.
+** Analyze the code
+The server xxx.xxx.yyy.yyy.8088 is a zabbix server gathering metrics from container. 
+There is an agent program resides in each application container which sends metrics data every defined period. 
+The data send is done by doing an HTTP POST request to zabbix server. 
+After analyzing the code of this agent, it is found that the agent program does not explicitly release http response objects, 
+which will leave the socket file open or half-open in this case. Until these objects are collected by GC of jvm, these socket files will not be closed. 
+
+Such behavior will definitely introduce a interval between server side close and client side close, 
+this interval is the already shown interval between client ACK of Server FIN and client FIN packet. and this is the root cause of this issue.
+
+* Conclusion and suggestion
+The implicit release of response object is the root cause of this issue,
+ this behavior will introduce an interval between service side close and client side close. 
+This interval is longer than the virtual machine’s nf_conntrack_tcp_timeout_close_wait, 
+and the conntrack entry will be discarded before client sends out FIN packet, hence this FIN packet will be marked as invalid and won’t be masqueraded.
+Suggestions on mitigating this problems are:
+- improve code  quality, avoid such implicit release of resources
+- or an iptables rule like  
+  ~iptable -A FORWARD -j DROP -m conntrack --ctstate INVALID~
+  to drop each invalid packets.
+

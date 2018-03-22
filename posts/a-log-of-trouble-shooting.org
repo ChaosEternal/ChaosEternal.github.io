@@ -1,4 +1,4 @@
-#+TITLE: A Log of Trouble Shooting
+#+TITLE: A Log of Network Trouble Shooting
 #+DATE: <2018-3-20 Sun>
 #+OPTIONS: ^:nil
 #+OPTIONS: _:nil

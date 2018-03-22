@@ -1,0 +1,302 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"https://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="https://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link rel="alternate"
+      type="appliation/rss+xml"
+      href="http://chaoseternal.net/rss.xml"
+      title="RSS feed for http://chaoseternal.net/">
+<title>A Log of Trouble Shooting</title><meta  name="author" content="Jun Sheng" />
+<link href="http://fonts.googleapis.com/css?family=Roboto&subset=latin" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=Ubuntu+Mono" rel="stylesheet" type="text/css">
+<link href="static/style.css" rel="stylesheet" type="text/css" />
+<link rel="icon" href="static/favicon.ico">
+<link rel="apple-touch-icon-precomposed" href="static/favicon-152.png">
+<link rel="msapplication-TitleImage" href="static/favicon-144.png">
+<link rel="msapplication-TitleColor" href="#0141ff">
+<script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML"> </script>
+<meta http-equiv="content-type" content="application/xhtml+xml; charset=UTF-8" />
+<meta name="viewport" content="initial-scale=1,width=device-width,minimum-scale=1">
+</head>
+<body>
+<div id="preamble" class="status"><div id="preamble" class="status"><div class="header">
+  <a href="http://chaoseternal.net">Chaos Eternal</a>
+  <div class="sitelinks">
+    <a href="https://twitter.com/chaoseternal">Twitter</a> | <a href="http://github.com/Chaoseternal">Github</a>
+  </div>
+</div></div>
+<div id="content"><div class="post-date">20 Mar 2018</div><h1 class="post-title"><a href="http://chaoseternal.net/a-log-of-trouble-shooting.html">A Log of Trouble Shooting</a></h1>
+
+<div id="outline-container-sec-1" class="outline-2">
+<h2 id="sec-1">The problem</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+This story happend in real world, but the customer name is faked.
+</p>
+
+<p>
+One of my customers, The Big Customer(in abbrev, TBC), is running our product.
+</p>
+
+<p>
+One day they come to me describe the following wierd phenomeon:
+</p>
+
+<p>
+They observed a lot of ip packets send from containers in one component of our product, which is a virutal machine of a cluster, 
+to other servers without doing SNAT(MASQUERADE), 
+the receiving server is not a member of the cluster. As a result, these packets are then getting bounced into TBC’s core network, and triggering alerts.
+</p>
+
+<p>
+These containers are hosting user applications, these containers are using internal ip addresses (usually 10.254.x.x). 
+When processes inside these containers are going to connect outside servers, the packets need to be SNATed by the hosting virtual machine,
+this is done by a MASQUERADE rule in iptables’ “nat” table. 
+</p>
+
+<p>
+On the problematic system, a lot of packets with TCP flag FIN set get send out from container with source ip unchanged, the MASQUERADE rule does not take effect.
+When these packets reach the server, they will be considered invalid packets due to source address unrecognized, 
+hence RST packets are emitted towards those source addresses, in this case, the 10.254.x.x addresses, 
+and these packets get routed into TBC’s core network and trigger alerts.
+</p>
+
+<p>
+As stated by TBC’s administrator of their core networking, they have been receiving these weird alerts for a long time, 
+and only recently can they traced down the origin of these packets, which is send by virtual machines of our product.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-2" class="outline-2">
+<h2 id="sec-2">Analysis</h2>
+<div class="outline-text-2" id="text-2">
+</div><div id="outline-container-sec-2-1" class="outline-3">
+<h3 id="sec-2-1">Checking connection status</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+In container, lots of tcp-connections are in CLOSE-WAIT state.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-2-2" class="outline-3">
+<h3 id="sec-2-2">Packet analysis using tcpdump</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+Packet analysis using tcpdump on the virtual machine:
+12 conversations analyzed , three of them are partially captured, 5 conversations are erroneous.  The summary:
+</p>
+
+<table border="2" cellspacing="0" cellpadding="6" rules="groups" frame="hsides">
+
+
+<colgroup>
+<col  class="left" />
+
+<col  class="left" />
+
+<col  class="left" />
+
+<col  class="left" />
+</colgroup>
+<tbody>
+<tr>
+<td class="left">SourceIP/Port</td>
+<td class="left">DestIP/Port</td>
+<td class="left">Connection status</td>
+<td class="left">Remark</td>
+</tr>
+
+<tr>
+<td class="left">10.254.0.54.38758</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">Partially Captured</td>
+<td class="left">SYN packet not seen</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.39474</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">Partially Captured, erroneous</td>
+<td class="left">SYN Packet not seen. FIN packet from client not masqueraded</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.40162</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">No error</td>
+<td class="left">&#xa0;</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.40888</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">No error</td>
+<td class="left">&#xa0;</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.41740</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">Erroneous</td>
+<td class="left">FIN packet from client not masqueraded</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.42478</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">Erroneous</td>
+<td class="left">FIN packet from client not masqueraded</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.43218</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">No error</td>
+<td class="left">&#xa0;</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.43994</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">No error</td>
+<td class="left">&#xa0;</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.44710</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">Erroneous</td>
+<td class="left">FIN packet from client not masqueraded</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.45426</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">Erroneous</td>
+<td class="left">FIN packet from client not masqueraded</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.46244</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">No error</td>
+<td class="left">&#xa0;</td>
+</tr>
+
+<tr>
+<td class="left">xxx.xxx.xxx.xxx.46964</td>
+<td class="left">xxx.xxx.yyy.yyy.8088</td>
+<td class="left">Partially Captured</td>
+<td class="left">FIN Packet not seen from both side.</td>
+</tr>
+</tbody>
+</table>
+
+<p>
+Inspecting a typical erroneous conversation:
+</p>
+<pre class="example">
+15:00:25.416697 IP xxx.xxx.xxx.xxx.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [S], seq 3714847479, win 28280, options [mss 1414,sackOK,TS val 2156888755 ecr 0,nop,wscale 7], length 0
+15:00:25.416995 IP xxx.xxx.yyy.yyy.8088 &gt; xxx.xxx.xxx.xxx.41740: Flags [S.], seq 4230280871, ack 3714847480, win 28960, options [mss 1460,sackOK,TS val 823948244 ecr 2156888755,nop,wscale 7], length 0
+15:00:25.417080 IP xxx.xxx.xxx.xxx.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [.], ack 4230280872, win 221, options [nop,nop,TS val 2156888755 ecr 823948244], length 0
+15:00:25.417555 IP xxx.xxx.xxx.xxx.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [P.], seq 3714847480:3714848324, ack 4230280872, win 221, options [nop,nop,TS val 2156888755 ecr 823948244], length 844
+15:00:25.417805 IP xxx.xxx.yyy.yyy.8088 &gt; xxx.xxx.xxx.xxx.41740: Flags [.], ack 3714848324, win 240, options [nop,nop,TS val 823948245 ecr 2156888755], length 0
+15:00:25.420292 IP xxx.xxx.yyy.yyy.8088 &gt; xxx.xxx.xxx.xxx.41740: Flags [P.], seq 4230280872:4230281169, ack 3714848324, win 240, options [nop,nop,TS val 823948245 ecr 2156888755], length 297
+15:00:25.420596 IP xxx.xxx.xxx.xxx.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [.], ack 4230281169, win 230, options [nop,nop,TS val 2156888756 ecr 823948245], length 0
+15:00:46.760856 IP xxx.xxx.yyy.yyy.8088 &gt; xxx.xxx.xxx.xxx.41740: Flags [F.], seq 4230281169, ack 3714848324, win 240, options [nop,nop,TS val 823953579 ecr 2156888756], length 0
+
+15:00:46.800503 IP xxx.xxx.xxx.xxx.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [.], ack 4230281170, win 230, options [nop,nop,TS val 2156894101 ecr 823953579], length 0
+~~~~~~~~~~~~~~~
+15:03:21.948707 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156932888 ecr 823953579], length 0
+~~~~~~~~~~~~~~~
+15:03:22.152480 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156932939 ecr 823953579], length 0
+15:03:22.356643 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156932990 ecr 823953579], length 0
+15:03:22.764540 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156933092 ecr 823953579], length 0
+15:03:23.583041 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156933296 ecr 823953579], length 0
+15:03:25.216453 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156933705 ecr 823953579], length 0
+15:03:28.492444 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156934524 ecr 823953579], length 0
+15:03:35.036477 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156936160 ecr 823953579], length 0
+15:03:48.124523 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156939432 ecr 823953579], length 0
+15:04:14.332468 IP 10.254.0.54.41740 &gt; xxx.xxx.yyy.yyy.8088: Flags [F.], seq 3714848324, ack 4230281170, win 230, options [nop,nop,TS val 2156945984 ecr 823953579], length 0
+</pre>
+<p>
+The evidence that all these packets are belong to the same conversation is the fact that all sequence numbers are continuous. 
+The marked two lines show that the FIN packet from client side is sent more than 2 minutes later
+ than the client side ACKs the FIN packet sent from server side. 
+This is the nf_conntrack_tcp_timeout_close_wait settings on the virtual machine:
+this timeout is set to 60 second.
+</p>
+
+<p>
+When conntrack module of the virtual machine see both server side FIN packet(SEQ 4230281169) and client’s ACK packet to the FIN (ACK 4230281170), 
+it will mark the connect as CLOSE_WAIT state, the entry describing the connection will be deleted after 60 seconds(nf_conntrack_tcp_timeout_close_wait).
+At the moment the client side sends out a FIN packet after almost 2 minutes (SEQ 3714848324), 
+the packet does not match any conntrack entry, and will be marked as an INVALID packet. 
+SNAT(MASQUERAD in this case) rule of iptables depends on conntrack to remember each connection’s state, 
+then INVALID packets will not be masqueraded, such packet will just be simply routed to its destination. 
+When the server side receives these un-masqueraded packets, 
+it does not have any information about the src address of the packets and then bounces these packet to their src address with RST flag. 
+Client will not receive any response of the FIN packets, and retries until another timeout occurs. 
+</p>
+
+<p>
+Under such scenario, each of FIN packet resent by client will cause a bounced packet.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-2-3" class="outline-3">
+<h3 id="sec-2-3">Analyze the code</h3>
+<div class="outline-text-3" id="text-2-3">
+<p>
+The server xxx.xxx.yyy.yyy.8088 is a zabbix server gathering metrics from container. 
+There is an agent program resides in each application container which sends metrics data every defined period. 
+The data send is done by doing an HTTP POST request to zabbix server. 
+After analyzing the code of this agent, it is found that the agent program does not explicitly release http response objects, 
+which will leave the socket file open or half-open in this case. Until these objects are collected by GC of jvm, these socket files will not be closed. 
+</p>
+
+<p>
+Such behavior will definitely introduce a interval between server side close and client side close, 
+this interval is the already shown interval between client ACK of Server FIN and client FIN packet. and this is the root cause of this issue.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-sec-3" class="outline-2">
+<h2 id="sec-3">Conclusion and suggestion</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+The implicit release of response object is the root cause of this issue,
+ this behavior will introduce an interval between service side close and client side close. 
+This interval is longer than the virtual machine’s nf_conntrack_tcp_timeout_close_wait, 
+and the conntrack entry will be discarded before client sends out FIN packet, hence this FIN packet will be marked as invalid and won’t be masqueraded.
+Suggestions on mitigating this problems are:
+</p>
+<ul class="org-ul">
+<li>improve code  quality, avoid such implicit release of resources
+</li>
+<li>or an iptables rule like  
+<code>iptable -A FORWARD -j DROP -m conntrack --ctstate INVALID</code>
+to drop each invalid packets.
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div id="postamble" class="status"><div id="postamble" class="status"><div id="archive">
+  <a href="archive.html">Other posts</a>
+</div>
+<center><a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/">
+<img alt="Creative Commons License" style="border-width:0" src="http://i.creativecommons.org/l/by-sa/3.0/88x31.png" /></a>
+<br />
+<span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">chaoseternal.net</span> 
+by <a xmlns:cc="http://creativecommons.org/ns#" href="http://chaoseternal.net" property="cc:attributionName" rel="cc:attributionURL">Chaos Eternal</a> 
+is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution-ShareAlike 3.0 Unported License</a>.
+</center>
+</div>
+</body>
+</html>

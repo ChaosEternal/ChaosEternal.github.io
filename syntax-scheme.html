@@ -6,29 +6,12 @@
 <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 <link rel="alternate"
       type="appliation/rss+xml"
-      href="http://chaoseternal.net/rss.xml"
-      title="RSS feed for http://chaoseternal.net/">
-<title>Scheme Syntax-Case usage</title><meta  name="author" content="Jun Sheng" />
-<link href='http://fonts.googleapis.com/css?family=Roboto&subset=latin' rel='stylesheet' type='text/css'>
-<link href='http://fonts.googleapis.com/css?family=Ubuntu+Mono' rel='stylesheet' type='text/css'>
-<link href= "static/style.css" rel="stylesheet" type="text/css" />
-<link rel="icon" href="static/favicon.ico">
-<link rel="apple-touch-icon-precomposed" href="static/favicon-152.png">
-<link rel="msapplication-TitleImage" href="static/favicon-144.png">
-<link rel="msapplication-TitleColor" href="#0141ff">
-<script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML"> </script>
-<meta http-equiv="content-type" content="application/xhtml+xml; charset=UTF-8" />
-<meta name="viewport" content="initial-scale=1,width=device-width,minimum-scale=1"></head>
+      href="http://chaoseternal.netrss.xml"
+      title="RSS feed for http://chaoseternal.net">
+<title>Scheme Syntax-Case usage</title></head>
 <body>
-<div id="preamble" class="status"><div class="header">
-  <a href="http://chaoseternal.net">Chaos Eternal</a>
-  <div class="sitelinks">
-    <a href="https://twitter.com/chaoseternal">Twitter</a> | <a href="http://github.com/Chaoseternal">Github</a>
-  </div>
-</div></div>
-<div id="content">
-<div class="post-date">29 Oct 2017</div>
-<h1 class="post-title">Scheme Syntax-Case usage</h1>
+<div id="preamble" class="status"></div>
+<div id="content"><div class="post-date">29 Oct 2017</div><h1 class="post-title"><a href="http://chaoseternal.netsyntax-scheme.html">Scheme Syntax-Case usage</a></h1>
 
 <div id="outline-container-sec-1" class="outline-2">
 <h2 id="sec-1">Macros of The Scheme Programming Language</h2>
@@ -58,9 +41,9 @@ For example, this macro:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define-macro</span> (<span style="color: #1e7bda; font-weight: bold;">when</span> cond exp . rest)
-  `(<span style="color: #1e7bda; font-weight: bold;">if</span> ,cond
-       (<span style="color: #1e7bda; font-weight: bold;">begin</span> ,exp . ,rest)))
+<pre class="src src-scheme">(define-macro (when cond exp . rest)
+  `(if ,cond
+       (begin ,exp . ,rest)))
 </pre>
 </div>
 <p>
@@ -69,9 +52,9 @@ And on applying this macro, such form <code>(when (&gt; n 0) exp1 exp2)</code> w
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">if</span> (&gt; n 0)
-    (<span style="color: #1e7bda; font-weight: bold;">begin</span> exp1 
-           exp2))
+<pre class="src src-scheme">(if (&gt; n 0)
+    (begin exp1 
+	   exp2))
 </pre>
 </div>
 <p>
@@ -96,8 +79,8 @@ Consider the macro <code>when</code> defined in the previous secrtion, in the sc
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">let</span> ((<span style="color: #1e7bda; font-weight: bold;">begin</span> list))
-  (<span style="color: #1e7bda; font-weight: bold;">when</span> #f 1 2))
+<pre class="src src-scheme">(let ((begin list))
+  (when #f 1 2))
 </pre>
 </div>
 <p>
@@ -105,7 +88,7 @@ the code will be equivalent of:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">if</span> #t
+<pre class="src src-scheme">(if #t
     (list 1 2))
 </pre>
 </div>
@@ -123,10 +106,10 @@ For example, this code defined a naive macro <code>swap!</code> which swaps valu
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define-macro</span> (<span style="color: #959508;">swap!</span> o1 o2)
-  `(<span style="color: #1e7bda; font-weight: bold;">let</span> ((tmp ,o1))
-     (<span style="color: #1e7bda; font-weight: bold;">set!</span> ,o1 ,o2)
-     (<span style="color: #1e7bda; font-weight: bold;">set!</span> ,o2 tmp)))
+<pre class="src src-scheme">(define-macro (swap! o1 o2)
+  `(let ((tmp ,o1))
+     (set! ,o1 ,o2)
+     (set! ,o2 tmp)))
 </pre>
 </div>
 <p>
@@ -135,11 +118,11 @@ This macro can be rewritten using <code>gensym</code>:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define-macro</span> (<span style="color: #959508;">swap1</span> o1 o2)
-  (<span style="color: #1e7bda; font-weight: bold;">let</span> ((tmp (gensym)))
-    `(<span style="color: #1e7bda; font-weight: bold;">let</span> ((,tmp ,o1))
-       (<span style="color: #1e7bda; font-weight: bold;">set!</span> ,o1 ,o2)
-       (<span style="color: #1e7bda; font-weight: bold;">set!</span> ,o2 ,tmp))))
+<pre class="src src-scheme">(define-macro (swap1 o1 o2)
+  (let ((tmp (gensym)))
+    `(let ((,tmp ,o1))
+       (set! ,o1 ,o2)
+       (set! ,o2 ,tmp))))
 </pre>
 </div>
 <p>
@@ -161,11 +144,11 @@ With <code>syntax-rules</code>, the macro <code>when</code> can be re-written as
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define-syntax</span> <span style="color: #959508;">when</span>
-  (<span style="color: #1e7bda; font-weight: bold;">syntax-rules</span> ()
-    ((<span style="color: #1e7bda; font-weight: bold;">when</span> cond exp1 ...)
-     (<span style="color: #1e7bda; font-weight: bold;">if</span> cond
-         (<span style="color: #1e7bda; font-weight: bold;">begin</span> exp1 ...)))))
+<pre class="src src-scheme">(define-syntax when
+  (syntax-rules ()
+    ((when cond exp1 ...)
+     (if cond
+	 (begin exp1 ...)))))
 </pre>
 </div>
 
@@ -194,12 +177,12 @@ Using <code>syntax-case</code>, the macro <code>when</code> can be rewritten as:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define-syntax</span> <span style="color: #959508;">when</span>
-  (<span style="color: #1e7bda; font-weight: bold;">lambda</span> (stx)
-    (<span style="color: #1e7bda; font-weight: bold;">syntax-case</span> stx ()
-        ((_ cond exp1 . exp2)
-         #'(<span style="color: #1e7bda; font-weight: bold;">if</span> cond
-               (<span style="color: #1e7bda; font-weight: bold;">begin</span> exp1 . exp2))))))
+<pre class="src src-scheme">(define-syntax when
+  (lambda (stx)
+    (syntax-case stx ()
+	((_ cond exp1 . exp2)
+	 #'(if cond
+	       (begin exp1 . exp2))))))
 </pre>
 </div>
 <p>
@@ -213,13 +196,13 @@ The macro <code>swap!</code>:
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define-syntax</span> <span style="color: #959508;">swap!</span>
-  (<span style="color: #1e7bda; font-weight: bold;">lambda</span> (stx)
-    (<span style="color: #1e7bda; font-weight: bold;">syntax-case</span> stx ()
+<pre class="src src-scheme">(define-syntax swap!
+  (lambda (stx)
+    (syntax-case stx ()
       ((_ op1 op2)
-       #'(<span style="color: #1e7bda; font-weight: bold;">let</span> ((tmp op1))
-           (<span style="color: #1e7bda; font-weight: bold;">set!</span> op1 op2)
-           (<span style="color: #1e7bda; font-weight: bold;">set!</span> op2 tmp))))))
+       #'(let ((tmp op1))
+	   (set! op1 op2)
+	   (set! op2 tmp))))))
 </pre>
 </div>
 <p>
@@ -227,9 +210,9 @@ The expanded result(using 'expand' of ChezScheme <code>(expand '(swap! var1 var2
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">let</span> ([#{tmp cvbrbh0gnpwjvy0dl1m1nb-1} var1])
-  (<span style="color: #1e7bda; font-weight: bold;">set!</span> var1 var2)
-  (<span style="color: #1e7bda; font-weight: bold;">set!</span> var2 #{tmp cvbrbh0gnpwjvy0dl1m1nb-1}))
+<pre class="src src-scheme">(let ([#{tmp cvbrbh0gnpwjvy0dl1m1nb-1} var1])
+  (set! var1 var2)
+  (set! var2 #{tmp cvbrbh0gnpwjvy0dl1m1nb-1}))
 </pre>
 </div>
 <p>
@@ -246,36 +229,36 @@ The following examples shows a more complex usage of syntax-case, upon expansion
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme"><span style="color: #319448;">;; </span><span style="color: #319448;">this macro using iterative approach</span>
-(<span style="color: #1e7bda; font-weight: bold;">define-syntax</span> <span style="color: #959508;">fib</span>
-  (<span style="color: #1e7bda; font-weight: bold;">lambda</span> (x)
-    (<span style="color: #1e7bda; font-weight: bold;">syntax-case</span> x ()
+<pre class="src src-scheme">;; this macro using iterative approach
+(define-syntax fib
+  (lambda (x)
+    (syntax-case x ()
       ((fib n)
        #'(fib n 1 0))
       ((fib 0 num2 num3) (syntax-&gt;datum #'num2))
       ((fib num1 num2 num3)
        (with-syntax ((n (datum-&gt;syntax #'fib
-                                       (- (syntax-&gt;datum #'num1)
-                                          1)))
-                     (n2 (datum-&gt;syntax #'fib
-                                        (+ (syntax-&gt;datum #'num2)
-                                           (syntax-&gt;datum #'num3))))
-                     (n3 (<span style="color: #1e7bda; font-weight: bold;">syntax</span> num2)))
-         #'(fib n n2 n3))))))
-<span style="color: #319448;">;; </span><span style="color: #319448;">this macro is recursive and much slower</span>
-(<span style="color: #1e7bda; font-weight: bold;">define-syntax</span> <span style="color: #959508;">fib2</span>
-  (<span style="color: #1e7bda; font-weight: bold;">lambda</span> (x)
-    (<span style="color: #1e7bda; font-weight: bold;">syntax-case</span> x ()
+				       (- (syntax-&gt;datum #'num1)
+					  1)))
+		     (n2 (datum-&gt;syntax #'fib
+					(+ (syntax-&gt;datum #'num2)
+					   (syntax-&gt;datum #'num3))))
+		     (n3 (syntax num2)))
+	 #'(fib n n2 n3))))))
+;; this macro is recursive and much slower
+(define-syntax fib2
+  (lambda (x)
+    (syntax-case x ()
       ((fib2 0)
        #'1)
       ((fib2 1)
        #'1)
       ((fib2 n)
        (with-syntax ((n2 (datum-&gt;syntax #'fib2
-                                        (- (syntax-&gt;datum #'n) 1)))
-                     (n3 (datum-&gt;syntax #'fib2
-                                        (- (syntax-&gt;datum #'n) 2))))
-         #'(+ (fib2 n2) (fib2 n3)))))))
+					(- (syntax-&gt;datum #'n) 1)))
+		     (n3 (datum-&gt;syntax #'fib2
+					(- (syntax-&gt;datum #'n) 2))))
+	 #'(+ (fib2 n2) (fib2 n3)))))))
 </pre>
 </div>
 
@@ -288,21 +271,21 @@ In rencent Elixr<sup><a id="fnr.6" name="fnr.6" class="footref" href="#fn.6">6</
 </p>
 <div class="org-src-container">
 
-<pre class="src src-scheme">(<span style="color: #1e7bda; font-weight: bold;">define-syntax</span> <span style="color: #959508;">and-let*-values-check</span>
-  (<span style="color: #1e7bda; font-weight: bold;">lambda</span> (stx)
-    (<span style="color: #1e7bda; font-weight: bold;">syntax-case</span> stx (<span style="color: #1e7bda; font-weight: bold;">else</span>)
-      ((kw (?bind0 ?bind1 ...) ?body0 ... (<span style="color: #1e7bda; font-weight: bold;">else</span> ?expr0 ...))
-       (<span style="color: #1e7bda; font-weight: bold;">syntax-case</span> #'?bind0 ()
-         (((?b0 ?b1 ...) ?exp)
-          (<span style="color: #1e7bda; font-weight: bold;">let*</span> ((?check-b0 (car (generate-temporaries (list #'?b0)))))
-            #`(<span style="color: #1e7bda; font-weight: bold;">let-values</span> (((#,?check-b0 ?b1 ...) ?exp))
-                (<span style="color: #1e7bda; font-weight: bold;">if</span> (equal? #,?check-b0 ?b0)
-                    (kw (?bind1 ...) ?body0 ...)
-                    (<span style="color: #1e7bda; font-weight: bold;">begin</span> ?expr0 ...)))))))
-      ((_ () ?body0 ... (<span style="color: #1e7bda; font-weight: bold;">else</span> ?expr0 ...))
-       #'(<span style="color: #1e7bda; font-weight: bold;">begin</span> ?body0 ...))
+<pre class="src src-scheme">(define-syntax and-let*-values-check
+  (lambda (stx)
+    (syntax-case stx (else)
+      ((kw (?bind0 ?bind1 ...) ?body0 ... (else ?expr0 ...))
+       (syntax-case #'?bind0 ()
+	 (((?b0 ?b1 ...) ?exp)
+	  (let* ((?check-b0 (car (generate-temporaries (list #'?b0)))))
+	    #`(let-values (((#,?check-b0 ?b1 ...) ?exp))
+		(if (equal? #,?check-b0 ?b0)
+		    (kw (?bind1 ...) ?body0 ...)
+		    (begin ?expr0 ...)))))))
+      ((_ () ?body0 ... (else ?expr0 ...))
+       #'(begin ?body0 ...))
       ((kw (?bind0 ...) ?body0 ...)
-       #'(kw (?bind0 ...) ?body0 ... (<span style="color: #1e7bda; font-weight: bold;">else</span> #f))))))
+       #'(kw (?bind0 ...) ?body0 ... (else #f))))))
 </pre>
 </div>
 </div>
@@ -359,9 +342,6 @@ they are not essentials but sugars just make life happier. And even type systems
 
 </div>
 </div></div>
-<div id="postamble" class="status"><div id="archive">
-  <a href="archive.html">Other posts</a>
-</div>
-<center><a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/"><img alt="Creative Commons License" style="border-width:0" src="http://i.creativecommons.org/l/by-sa/3.0/88x31.png" /></a><br /><span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">chaoseternal.net</span> by <a xmlns:cc="http://creativecommons.org/ns#" href="http://chaoseternal.net" property="cc:attributionName" rel="cc:attributionURL">Chaos Eternal</a> is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution-ShareAlike 3.0 Unported License</a>.</center></div>
+<div id="postamble" class="status"></div>
 </body>
 </html>

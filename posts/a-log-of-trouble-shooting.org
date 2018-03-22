@@ -1,5 +1,7 @@
 #+TITLE: A Log of Trouble Shooting
-#+DATE: <2017-10-29 Sun>
+#+DATE: <2018-3-20 Sun>
+#+OPTIONS: ^:nil
+#+OPTIONS: _:nil
 
 * The problem
 This story happend in real world, but the customer name is faked.
@@ -7,16 +9,20 @@ This story happend in real world, but the customer name is faked.
 One of my customers, The Big Customer(in abbrev, TBC), is running our product.
 
 One day they come to me describe the following wierd phenomeon:
+
 They observed a lot of ip packets send from containers in one component of our product, which is a virutal machine of a cluster, 
 to other servers without doing SNAT(MASQUERADE), 
 the receiving server is not a member of the cluster. As a result, these packets are then getting bounced into TBC’s core network, and triggering alerts.
-The containers are hosting user applications, these containers are using internal ip addresses (usually 10.254.x.x). 
+
+These containers are hosting user applications, these containers are using internal ip addresses (usually 10.254.x.x). 
 When processes inside these containers are going to connect outside servers, the packets need to be SNATed by the hosting virtual machine,
-this is done by a MASQUERADE rule in iptables’ “nat” table. On the problematic system, 
-a lot of packets with TCP flag FIN set get send out from container with source ip unchanged, the MASQUERADE rule does not take effect.
+this is done by a MASQUERADE rule in iptables’ “nat” table. 
+
+On the problematic system, a lot of packets with TCP flag FIN set get send out from container with source ip unchanged, the MASQUERADE rule does not take effect.
 When these packets reach the server, they will be considered invalid packets due to source address unrecognized, 
-hence RST packets are emitted towards the source address, in this case, the 10.254.x.x addresses, 
+hence RST packets are emitted towards those source addresses, in this case, the 10.254.x.x addresses, 
 and these packets get routed into TBC’s core network and trigger alerts.
+
 As stated by TBC’s administrator of their core networking, they have been receiving these weird alerts for a long time, 
 and only recently can they traced down the origin of these packets, which is send by virtual machines of our product.
 
@@ -74,14 +80,15 @@ this timeout is set to 60 second.
 
 When conntrack module of the virtual machine see both server side FIN packet(SEQ 4230281169) and client’s ACK packet to the FIN (ACK 4230281170), 
 it will mark the connect as CLOSE_WAIT state, the entry describing the connection will be deleted after 60 seconds(nf_conntrack_tcp_timeout_close_wait).
-Hence when client side sends out a FIN packet after almost 2 minutes (SEQ 3714848324), 
+At the moment the client side sends out a FIN packet after almost 2 minutes (SEQ 3714848324), 
 the packet does not match any conntrack entry, and will be marked as an INVALID packet. 
 SNAT(MASQUERAD in this case) rule of iptables depends on conntrack to remember each connection’s state, 
 then INVALID packets will not be masqueraded, such packet will just be simply routed to its destination. 
 When the server side receives these un-masqueraded packets, 
 it does not have any information about the src address of the packets and then bounces these packet to their src address with RST flag. 
 Client will not receive any response of the FIN packets, and retries until another timeout occurs. 
-Each of FIN packet resent by client will cause a bounced packet.
+
+Under such scenario, each of FIN packet resent by client will cause a bounced packet.
 ** Analyze the code
 The server xxx.xxx.yyy.yyy.8088 is a zabbix server gathering metrics from container. 
 There is an agent program resides in each application container which sends metrics data every defined period. 

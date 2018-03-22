@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"https://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="https://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link rel="alternate"
+      type="appliation/rss+xml"
+      href="http://chaoseternal.net/rss.xml"
+      title="RSS feed for http://chaoseternal.net/">
+<title>Fixing a greenplum performance issue</title><meta  name="author" content="Jun Sheng" />
+<link href="http://fonts.googleapis.com/css?family=Roboto&subset=latin" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=Ubuntu+Mono" rel="stylesheet" type="text/css">
+<link href="static/style.css" rel="stylesheet" type="text/css" />
+<link rel="icon" href="static/favicon.ico">
+<link rel="apple-touch-icon-precomposed" href="static/favicon-152.png">
+<link rel="msapplication-TitleImage" href="static/favicon-144.png">
+<link rel="msapplication-TitleColor" href="#0141ff">
+<script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML"> </script>
+<meta http-equiv="content-type" content="application/xhtml+xml; charset=UTF-8" />
+<meta name="viewport" content="initial-scale=1,width=device-width,minimum-scale=1">
+</head>
+<body>
+<div id="preamble" class="status"><div id="preamble" class="status"><div class="header">
+  <a href="http://chaoseternal.net">Chaos Eternal</a>
+  <div class="sitelinks">
+    <a href="https://twitter.com/chaoseternal">Twitter</a> | <a href="http://github.com/Chaoseternal">Github</a>
+  </div>
+</div></div>
+<div id="content"><div class="post-date">21 Mar 2018</div><h1 class="post-title"><a href="http://chaoseternal.net/fix-a-greenplum-performance-issue.html">Fixing a greenplum performance issue</a></h1>
+
+
+<div id="outline-container-sec-1" class="outline-2">
+<h2 id="sec-1">The issue</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Two years ago I posted an issue to greenplum project<sup><a id="fnr.1" name="fnr.1" class="footref" href="#fn.1">1</a></sup>, targeting the long-known issue of poor performance of <code>writable external table</code>. 
+</p>
+
+<p>
+I wrote this piece of code to change the bufsize to 16M to reduce number of calls to 'curl_easy_perform', hence improving WET performance.
+</p>
+
+<pre class="example">
+diff --git a/src/backend/access/external/url.c b/src/backend/access/external/url.c
+index a81e687..1aaa6ba 100644
+--- a/src/backend/access/external/url.c
++++ b/src/backend/access/external/url.c
+@@ -2295,7 +2295,9 @@ static size_t curl_fwrite(char *buf, int nbytes, URL_FILE* file, CopyState pstat
+         */
+        if(!curl-&gt;out.ptr)
+        {
+-               const int bufsize = 64 * 1024 * sizeof(char);
++               const int bufsize = 16 * 1024 * 1024 * sizeof(char); /* Enlarge the bufsize to reduce call to curl_easy_perform,
++                                                                       hence WET performance should be improved.
++                                                                       The size itself is magic */
+                MemoryContext oldcontext = CurrentMemoryContext;
+
+                MemoryContextSwitchTo(CurTransactionContext); /* TODO: is there a better cxt to use? */
+</pre>
+
+<p>
+Gpfdist's buffer size should also  be enlarged by using options -m 33554432.
+</p>
+
+<p>
+The issue was then closed after a more robust patch accepted by greenplum team, the patch uses a GUC instead of hard-coded magic number to specify the buffersize.
+</p>
+</div>
+</div>
+<div id="outline-container-sec-2" class="outline-2">
+<h2 id="sec-2">Proves.</h2>
+<div class="outline-text-2" id="text-2">
+<p>
+At that time the source code of Greenplum has just been released to public, and the binaries I have had was different with the source released. 
+</p>
+
+<p>
+Instead of recompiling the source code to verify my code, I have to use this process to prove my findings: 
+</p>
+</div>
+
+<div id="outline-container-sec-2-1" class="outline-3">
+<h3 id="sec-2-1">Suppose a table 'onefield' with only one VARCHAR field, with maxium field length 440 bytes:</h3>
+<div class="outline-text-3" id="text-2-1">
+<pre class="example">
+\d onefield
+Append-Only Columnar Table "public.onefield"
+ Column |       Type        | Modifiers
+--------+-------------------+-----------
+ fld    | character varying |
+Checksum: t
+Distributed randomly
+
+SELECT max(length(fld)) from onefield;
+ max
+-----
+ 440
+(1 row)
+
+Time: 6134.606 ms
+</pre>
+</div>
+</div>
+<div id="outline-container-sec-2-2" class="outline-3">
+<h3 id="sec-2-2">use regular WET(writable external table):</h3>
+<div class="outline-text-3" id="text-2-2">
+<pre class="example">
+\d w16m_ext_1
+   External table "public.w16m_ext_1"
+ Column |       Type        | Modifiers
+--------+-------------------+-----------
+ fld    | character varying |
+Type: writable
+Encoding: UTF8
+Format type: text
+Format options: delimiter 'off' null '\N' escape '\'
+External location: gpfdist://p_etl01:16665/a16m_1.txt
+</pre>
+</div>
+</div>
+<div id="outline-container-sec-2-3" class="outline-3">
+<h3 id="sec-2-3">Export all records in table 'onefield' to 'w16m_ext_1'</h3>
+<div class="outline-text-3" id="text-2-3">
+<pre class="example">
+INSERT INTO w16m_ext_1 SELECT * from onefield;
+INSERT 0 171602816
+Time: 168113.381 ms
+</pre>
+</div>
+</div>
+<div id="outline-container-sec-2-4" class="outline-3">
+<h3 id="sec-2-4">The Same table , but using COPY:</h3>
+<div class="outline-text-3" id="text-2-4">
+<pre class="example">
+COPY onefield TO '/data/testing/onefield_copy';
+COPY 171602816
+Time: 70774.670 ms
+</pre>
+</div>
+</div>
+<div id="outline-container-sec-2-5" class="outline-3">
+<h3 id="sec-2-5">The Same Data, but aggregate many rows into one row to make aprox. 18M line:</h3>
+<div class="outline-text-3" id="text-2-5">
+<pre class="example">
+truncate w16m;
+TRUNCATE TABLE
+Time: 137.081 ms
+INSERT INTO w16m SELECT  string_agg(fld, E'\n')
+FROM onefield
+GROUP BY ctid::int8&gt;&gt;18, gp_segment_id ;
+INSERT 0 1344
+Time: 80662.342 ms
+SELECT max(length(fld)) from w16m;
+   max
+----------
+ 19412359
+(1 row)
+
+Time: 7475.346 ms
+</pre>
+</div>
+</div>
+
+<div id="outline-container-sec-2-6" class="outline-3">
+<h3 id="sec-2-6">export the data to WET:</h3>
+<div class="outline-text-3" id="text-2-6">
+<pre class="example">
+\d w16m_ext
+    External table "public.w16m_ext"
+ Column |       Type        | Modifiers
+--------+-------------------+-----------
+ fld    | character varying |
+Type: writable
+Encoding: UTF8
+Format type: text
+Format options: delimiter 'off' null '\N' escape '\'
+External location: gpfdist://p_etl01:16665/a16m.txt
+
+INSERT INTO w16m_ext SELECT * from w16m;
+INSERT 0 1344
+Time: 74387.568 ms
+</pre>
+</div>
+</div>
+<div id="outline-container-sec-2-7" class="outline-3">
+<h3 id="sec-2-7">data size</h3>
+<div class="outline-text-3" id="text-2-7">
+<pre class="example">
+-rw------- 1 gpadmin gpadmin  29G Dec 24 14:19 a16m_1.txt
+-rw------- 1 gpadmin gpadmin  29G Dec 24 14:07 a16m.txt
+-rw-r--r-- 1 gpadmin gpadmin  29G Dec 24 14:08 onefield_copy
+</pre>
+</div>
+</div>
+<div id="outline-container-sec-2-8" class="outline-3">
+<h3 id="sec-2-8">Conclusion</h3>
+<div class="outline-text-3" id="text-2-8">
+<p>
+Enlarge datasize of each 'POST request' invoked by  'curl_fwrite' will dramatically improve WET performance . From 168113.381 ms reduced to  74387.568 ms.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-sec-3" class="outline-2">
+<h2 id="sec-3">Upshot</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+Yao Yandong made a more robust patch according to my findings. Instead of hard-coded bufsize, the patch introduced a new GUC letting DBA to adjust this size. And the patch was merged to Greenplum when 4.3.7.1 was released. <sup><a id="fnr.2" name="fnr.2" class="footref" href="#fn.2">2</a></sup>
+</p>
+</div>
+</div>
+<div id="footnotes">
+<h2 class="footnotes">Footnotes: </h2>
+<div id="text-footnotes">
+
+<div class="footdef"><sup><a id="fn.1" name="fn.1" class="footnum" href="#fnr.1">1</a></sup> <p class="footpara">
+<a href="https://github.com/greenplum-db/gpdb/issues/210">https://github.com/greenplum-db/gpdb/issues/210</a>
+</p></div>
+
+<div class="footdef"><sup><a id="fn.2" name="fn.2" class="footnum" href="#fnr.2">2</a></sup> <p class="footpara">
+<a href="http://webcache.googleusercontent.com/search?q=cache:dOgH8j2--eIJ:gpdb.docs.pivotal.io/43210/relnotes/GPDB_4371_README.html+&cd=1&hl=en&ct=clnk&gl=us">http://webcache.googleusercontent.com/search?q=cache:dOgH8j2--eIJ:gpdb.docs.pivotal.io/43210/relnotes/GPDB_4371_README.html+&cd=1&hl=en&ct=clnk&gl=us</a>
+</p></div>
+
+
+</div>
+</div></div>
+<div id="postamble" class="status"><div id="postamble" class="status"><div id="archive">
+  <a href="archive.html">Other posts</a>
+</div>
+<center><a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/">
+<img alt="Creative Commons License" style="border-width:0" src="http://i.creativecommons.org/l/by-sa/3.0/88x31.png" /></a>
+<br />
+<span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">chaoseternal.net</span> 
+by <a xmlns:cc="http://creativecommons.org/ns#" href="http://chaoseternal.net" property="cc:attributionName" rel="cc:attributionURL">Chaos Eternal</a> 
+is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution-ShareAlike 3.0 Unported License</a>.
+</center>
+</div>
+</body>
+</html>

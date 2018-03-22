@@ -1,0 +1,141 @@
+#+TITLE: Fixing a greenplum performance issue
+#+DATE: <2018-3-21 Sun>
+#+OPTIONS: ^:nil
+#+OPTIONS: _:nil
+
+
+* The issue
+Two years ago I posted an issue to greenplum project[1], targeting the long-known issue of poor performance of ~writable external table~. 
+
+I wrote this piece of code to change the bufsize to 16M to reduce number of calls to 'curl_easy_perform', hence improving WET performance.
+
+#+begin_src
+diff --git a/src/backend/access/external/url.c b/src/backend/access/external/url.c
+index a81e687..1aaa6ba 100644
+--- a/src/backend/access/external/url.c
++++ b/src/backend/access/external/url.c
+@@ -2295,7 +2295,9 @@ static size_t curl_fwrite(char *buf, int nbytes, URL_FILE* file, CopyState pstat
+         */
+        if(!curl->out.ptr)
+        {
+-               const int bufsize = 64 * 1024 * sizeof(char);
++               const int bufsize = 16 * 1024 * 1024 * sizeof(char); /* Enlarge the bufsize to reduce call to curl_easy_perform,
++                                                                       hence WET performance should be improved.
++                                                                       The size itself is magic */
+                MemoryContext oldcontext = CurrentMemoryContext;
+
+                MemoryContextSwitchTo(CurTransactionContext); /* TODO: is there a better cxt to use? */
+#+end_src
+
+Gpfdist's buffer size should also  be enlarged by using options -m 33554432.
+
+The issue was then closed after a more robust patch accepted by greenplum team, the patch uses a GUC instead of hard-coded magic number to specify the buffersize.
+* Proves.
+
+At that time the source code of Greenplum has just been released to public, and the binaries I have had was different with the source released. 
+
+Instead of recompiling the source code to verify my code, I have to use this process to prove my findings: 
+
+** Suppose a table 'onefield' with only one VARCHAR field, with maxium field length 440 bytes:
+
+#+begin_src
+\d onefield
+Append-Only Columnar Table "public.onefield"
+ Column |       Type        | Modifiers
+--------+-------------------+-----------
+ fld    | character varying |
+Checksum: t
+Distributed randomly
+
+SELECT max(length(fld)) from onefield;
+ max
+-----
+ 440
+(1 row)
+
+Time: 6134.606 ms
+#+end_src
+** use regular WET(writable external table):
+
+#+begin_src
+\d w16m_ext_1
+   External table "public.w16m_ext_1"
+ Column |       Type        | Modifiers
+--------+-------------------+-----------
+ fld    | character varying |
+Type: writable
+Encoding: UTF8
+Format type: text
+Format options: delimiter 'off' null '\N' escape '\'
+External location: gpfdist://p_etl01:16665/a16m_1.txt
+#+end_src
+** Export all records in table 'onefield' to 'w16m_ext_1'
+
+#+begin_src
+INSERT INTO w16m_ext_1 SELECT * from onefield;
+INSERT 0 171602816
+Time: 168113.381 ms
+#+end_src
+** The Same table , but using COPY:
+
+#+begin_src
+COPY onefield TO '/data/testing/onefield_copy';
+COPY 171602816
+Time: 70774.670 ms
+#+end_src
+** The Same Data, but aggregate many rows into one row to make aprox. 18M line:
+
+#+begin_src
+truncate w16m;
+TRUNCATE TABLE
+Time: 137.081 ms
+INSERT INTO w16m SELECT  string_agg(fld, E'\n')
+FROM onefield
+GROUP BY ctid::int8>>18, gp_segment_id ;
+INSERT 0 1344
+Time: 80662.342 ms
+SELECT max(length(fld)) from w16m;
+   max
+----------
+ 19412359
+(1 row)
+
+Time: 7475.346 ms
+#+end_src
+
+** export the data to WET:
+
+#+begin_src
+\d w16m_ext
+    External table "public.w16m_ext"
+ Column |       Type        | Modifiers
+--------+-------------------+-----------
+ fld    | character varying |
+Type: writable
+Encoding: UTF8
+Format type: text
+Format options: delimiter 'off' null '\N' escape '\'
+External location: gpfdist://p_etl01:16665/a16m.txt
+
+INSERT INTO w16m_ext SELECT * from w16m;
+INSERT 0 1344
+Time: 74387.568 ms
+
+#+end_src
+** data size
+
+#+begin_src
+-rw------- 1 gpadmin gpadmin  29G Dec 24 14:19 a16m_1.txt
+-rw------- 1 gpadmin gpadmin  29G Dec 24 14:07 a16m.txt
+-rw-r--r-- 1 gpadmin gpadmin  29G Dec 24 14:08 onefield_copy
+
+#+end_src
+** Conclusion
+
+Enlarge datasize of each 'POST request' invoked by  'curl_fwrite' will dramatically improve WET performance . From 168113.381 ms reduced to  74387.568 ms.
+
+* Upshot
+Yao Yandong made a more robust patch according to my findings. Instead of hard-coded bufsize, the patch introduced a new GUC letting DBA to adjust this size. And the patch was merged to Greenplum when 4.3.7.1 was released. [2]
+
+[1] https://github.com/greenplum-db/gpdb/issues/210
+[2] http://webcache.googleusercontent.com/search?q=cache:dOgH8j2--eIJ:gpdb.docs.pivotal.io/43210/relnotes/GPDB_4371_README.html+&cd=1&hl=en&ct=clnk&gl=us

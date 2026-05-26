@@ -129,7 +129,7 @@ General-purpose Scheme programs use continuations, macros, and evaluation strate
 
 * What's Next
 
-The scheme-agent project continues with Phase 6 (testing and polish). The harness will evolve alongside the agent -- as we discover new patterns the LLM tries to generate, we can refine the whitelist and add new analysis passes.
+The scheme-agent project is under active development. The harness will evolve alongside the agent -- as we discover new patterns the LLM tries to generate, we can refine the whitelist and add new analysis passes.
 
 The broader question this work raises: as AI agents become more capable, how do we give them powerful tools like code execution without giving up control? A harness -- validating what the agent wants to do, controlling how it executes, and giving structured feedback when things go wrong -- is a pattern that applies far beyond Scheme.
 

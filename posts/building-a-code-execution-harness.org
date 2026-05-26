@@ -133,4 +133,4 @@ The scheme-agent project continues with Phase 6 (testing and polish). The harnes
 
 The broader question this work raises: as AI agents become more capable, how do we give them powerful tools like code execution without giving up control? A harness -- validating what the agent wants to do, controlling how it executes, and giving structured feedback when things go wrong -- is a pattern that applies far beyond Scheme.
 
-The scheme-agent project is open source at https://github.com/ChaosEternal/memory-solution. The harness-checker component is available separately at https://github.com/Chaos-AI-Projects/scheme-harness-checker.
+The harness-checker component is open source at https://github.com/Chaos-AI-Projects/scheme-harness-checker.

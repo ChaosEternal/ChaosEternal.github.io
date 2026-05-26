@@ -27,7 +27,277 @@
     <a href="https://twitter.com/chaoseternal">Twitter</a> | <a href="http://github.com/Chaoseternal">Github</a>
   </div>
 </div></div>
-<div id="content"><div class="post-date">21 Mar 2018</div><h1 class="post-title"><a href="http://chaoseternal.net/fix-a-greenplum-performance-issue.html">Fixing a greenplum performance issue</a></h1>
+<div id="content"><div class="post-date">26 May 2026</div><h1 class="post-title"><a href="http://chaoseternal.net/building-a-code-execution-harness.html">Building a Code Execution Harness for LLM Agents in Scheme</a></h1>
+
+<p>
+<i>How harness-checker gives AI agents the power to write and run code -- safely, with feedback, under control</i>
+</p>
+
+<p>
+When you let an LLM agent execute code, you face a fundamental tension: the agent needs real execution to be useful, but unrestricted eval is a security disaster. Most solutions frame this as a gating problem -- block or allow. But that framing misses what agents actually need.
+</p>
+
+<p>
+What agents need is a harness: a complete execution wrapper that validates code before it runs, controls the environment it runs in, enforces resource limits, and provides structured feedback when something is rejected. Not a bouncer at the door, but an entire controlled execution pipeline.
+</p>
+
+<p>
+This post explains why we built harness-checker for the scheme-agent project -- an agent framework written entirely in Chez Scheme -- and how the harness approach solves problems that simple gating and sandboxing cannot.
+</p>
+
+<div id="outline-container-sec-1" class="outline-2">
+<h2 id="sec-1">Why a Harness, Not Just a Gate</h2>
+<div class="outline-text-2" id="text-1">
+<p>
+Consider what happens when an agent tries to call <code>(system "ls /etc")</code>:
+</p>
+
+<p>
+With a gate: "Blocked." The agent has no idea why, or what to do instead. It might retry the same code, or give up entirely.
+</p>
+
+<p>
+With a harness: "Safety violation: function call (system) is not in the approved whitelist. Use only standard R6RS procedures." The agent rewrites its code using <code>(directory-list)</code> -- wait, that is also blocked. "function call (directory-list) is not in the approved whitelist." The agent realizes file system access is off-limits and solves the problem differently.
+</p>
+
+<p>
+That feedback-driven iteration is what separates a harness from a gate. A gate says yes or no. A harness manages the entire lifecycle:
+</p>
+
+<ol class="org-ol">
+<li>Pre-execution analysis: static checks on the code before it touches eval
+</li>
+<li>Environment control: a restricted evaluation context that limits what the code can access
+</li>
+<li>Resource management: engine-based timeouts that prevent runaway computation
+</li>
+<li>Structured feedback: when code is rejected, the agent gets a specific explanation it can act on
+</li>
+<li>Output capture: results are collected and returned cleanly to the agent loop
+</li>
+</ol>
+
+<p>
+The scheme-agent harness-checker, written in Chez Scheme itself, implements the analysis layer of this harness. Combined with restricted eval and engine-based timeouts in the tool dispatcher, it forms a complete execution harness for LLM-generated Scheme code.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-2" class="outline-2">
+<h2 id="sec-2">The Three Analysis Layers</h2>
+<div class="outline-text-2" id="text-2">
+</div>
+<div id="outline-container-sec-2-1" class="outline-3">
+<h3 id="sec-2-1">Layer 1: Function Whitelist</h3>
+<div class="outline-text-3" id="text-2-1">
+<p>
+The first and most important check: does the generated code only call approved procedures? We maintain a whitelist of safe R6RS standard procedures -- arithmetic, list operations, string manipulation, define, lambda, let, if, and so on.
+</p>
+
+<p>
+Anything not on the list is rejected. This means system, open-process-ports, eval, load, delete-file, and all file I/O are blocked by default. Even define-syntax is forbidden -- macro expansion can hide arbitrary computation behind innocent-looking syntax.
+</p>
+
+<p>
+The implementation parses the Scheme source into an AST and walks every call site, checking each identifier against the whitelist. The parser handles quoting, nested expressions, and Scheme's various binding forms to avoid false positives.
+</p>
+
+<p>
+To make this concrete, here is what gets blocked vs. what passes:
+</p>
+
+<div class="org-src-container">
+
+<pre class="src src-scheme">;; BLOCKED -- calls system (not in whitelist)
+(define (cleanup) (system "rm -rf /tmp/cache"))
+(cleanup)
+
+;; ALLOWED -- only standard R6RS procedures
+(define (fibonacci n)
+  (if (&lt; n 2) n
+      (+ (fibonacci (- n 1)) (fibonacci (- n 2)))))
+(fibonacci 10)
+</pre>
+</div>
+</div>
+</div>
+
+<div id="outline-container-sec-2-2" class="outline-3">
+<h3 id="sec-2-2">Layer 2: Parameter Validation</h3>
+<div class="outline-text-3" id="text-2-2">
+<p>
+Knowing which functions are called is not enough. We also check that arguments satisfy known constraints -- primarily arity (number of arguments) and type compatibility.
+</p>
+
+<p>
+The validator uses a two-pass approach: first it infers type constraints from how values are used across the program, then it checks each call site against known parameter rules. If you pass a string to <code>+</code> or call <code>map</code> with one argument, the code is rejected before execution.
+</p>
+
+<p>
+This catches a common LLM failure mode: generating code that looks syntactically correct but has subtle type errors that would cause runtime crashes.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-2-3" class="outline-3">
+<h3 id="sec-2-3">Layer 3: Termination Analysis</h3>
+<div class="outline-text-3" id="text-2-3">
+<p>
+The halting problem is undecidable in general, but LLM-generated code tends to be simple and well-structured. We use conservative heuristics tuned for this domain:
+</p>
+
+<p>
+For do loops and named let recursion: verify that exit conditions exist and are reachable. For recursive functions: check for decreasing arguments and reachable base cases. Flag any construct that cannot be proven to terminate within defined bounds.
+</p>
+
+<p>
+This is deliberately conservative -- it will reject some programs that would actually terminate. But for a harness, false positives (blocking safe code) are much better than false negatives (allowing unsafe code to run).
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-sec-3" class="outline-2">
+<h2 id="sec-3">How the Harness Works End to End</h2>
+<div class="outline-text-2" id="text-3">
+<p>
+In the scheme-agent framework, the <code>execute_scheme_code</code> tool implements the full harness pipeline:
+</p>
+
+<ol class="org-ol">
+<li>The LLM generates Scheme code as a tool call argument
+</li>
+<li>The code is written to a temp file
+</li>
+<li>harness-checker runs as a subprocess, performing all three analysis layers
+</li>
+<li>If all checks pass, the code is evaluated in a restricted <code>(rnrs)</code> environment with an engine-based timeout
+</li>
+<li>If any check fails, the tool returns structured feedback explaining exactly what was rejected and why
+</li>
+<li>Output from successful execution is captured and returned to the agent loop
+</li>
+<li>Temp files are cleaned up via <code>dynamic-wind</code>, even on exceptions
+</li>
+</ol>
+
+<p>
+This pipeline is what makes the harness more than the sum of its parts. The static analysis (step 3) and the restricted runtime (step 4) are independent safety layers -- defense in depth. The structured feedback (step 5) closes the loop, giving the agent what it needs to iterate. And the cleanup (step 7) ensures the harness leaves no mess behind, even when things fail.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-4" class="outline-2">
+<h2 id="sec-4">Why Not Just Sandbox?</h2>
+<div class="outline-text-2" id="text-4">
+<p>
+Operating system sandboxes (containers, seccomp, etc.) operate at the wrong abstraction level for agent code execution. They can prevent syscalls, but they fall short in three ways that matter for agents:
+</p>
+
+<ul class="org-ul">
+<li>No actionable feedback. A container returns "Operation not permitted" -- the agent has no idea what to do differently. The harness returns "function call (system) is not in the approved whitelist" -- the agent knows exactly what to fix.
+</li>
+<li>No semantic validation. A sandbox cannot catch type errors, arity mismatches, or non-termination before they cause runtime failures. These are language-level problems that require language-level analysis.
+</li>
+<li>Startup overhead. Container initialization adds latency to every tool call in the agent loop. Static analysis runs in milliseconds.
+</li>
+</ul>
+
+<p>
+The harness approach works at the language level, where the analysis is meaningful and the feedback is actionable. Here is what that feedback looks like in practice. When the LLM generates code calling <code>(system "rm -rf /")</code>, the harness returns:
+</p>
+
+<p>
+"Safety violation: function call (system) is not in the approved whitelist. Blocked functions: system, open-process-ports, eval, load. Use only standard R6RS procedures."
+</p>
+
+<p>
+The agent can parse this, understand it violated the whitelist, rewrite its code using only approved functions, and succeed on the next attempt. That feedback-driven retry loop is the core value proposition of a harness over a sandbox.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-5" class="outline-2">
+<h2 id="sec-5">Test Coverage and Confidence</h2>
+<div class="outline-text-2" id="text-5">
+<p>
+The harness has 25 tests covering:
+</p>
+
+<ul class="org-ul">
+<li>Whitelist violations (system calls, file I/O, eval, macros)
+</li>
+<li>Non-termination detection (infinite loops, unbounded recursion)
+</li>
+<li>Type errors and arity mismatches
+</li>
+<li>Runtime exceptions in safe code
+</li>
+<li>Output capture from multi-expression programs
+</li>
+<li>Confirmation that whitelisted operations (arithmetic, list ops, string formatting) pass cleanly
+</li>
+</ul>
+
+<p>
+Every test was written before the implementation -- test-driven development is especially important for security-critical code where "it seems to work" is not good enough.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-6" class="outline-2">
+<h2 id="sec-6">Lessons Learned</h2>
+<div class="outline-text-2" id="text-6">
+</div>
+<div id="outline-container-sec-6-1" class="outline-3">
+<h3 id="sec-6-1">Scheme's Homoiconicity Is a Double-Edged Sword</h3>
+<div class="outline-text-3" id="text-6-1">
+<p>
+The same property that makes Scheme elegant for metaprogramming -- code is data -- makes static analysis harder. Quoted expressions, quasiquote splicing, and macro expansion all complicate the "just walk the AST" approach. We deliberately excluded macros from the allowed subset to keep the analysis tractable.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-6-2" class="outline-3">
+<h3 id="sec-6-2">Conservative Is Correct for Harnesses</h3>
+<div class="outline-text-3" id="text-6-2">
+<p>
+It is tempting to make the analysis smarter so it accepts more programs. Resist this. Every edge case you handle is a potential bypass. A harness that occasionally rejects valid code is working as intended. A harness that occasionally allows unsafe code is broken.
+</p>
+
+<p>
+Critically, a harness makes conservatism affordable. Because the harness provides structured feedback explaining why code was rejected, the agent can fix its approach and retry. A false positive costs one extra iteration, not a dead end. This is fundamentally different from a gate, where rejection is final and the agent has no path forward. The harness turns conservatism from a usability problem into a reasonable tradeoff.
+</p>
+</div>
+</div>
+
+<div id="outline-container-sec-6-3" class="outline-3">
+<h3 id="sec-6-3">LLM-Generated Code Is a Favorable Domain for Static Analysis</h3>
+<div class="outline-text-3" id="text-6-3">
+<p>
+General-purpose Scheme programs use continuations, macros, and evaluation strategies that make static analysis nearly impossible. LLM-generated code, especially from a tool-use agent, tends to be simple, imperative-style programs using standard library functions. This is exactly the sweet spot where conservative heuristics work well.
+</p>
+</div>
+</div>
+</div>
+
+<div id="outline-container-sec-7" class="outline-2">
+<h2 id="sec-7">What's Next</h2>
+<div class="outline-text-2" id="text-7">
+<p>
+The scheme-agent project continues with Phase 6 (testing and polish). The harness will evolve alongside the agent -- as we discover new patterns the LLM tries to generate, we can refine the whitelist and add new analysis passes.
+</p>
+
+<p>
+The broader question this work raises: as AI agents become more capable, how do we give them powerful tools like code execution without giving up control? A harness -- validating what the agent wants to do, controlling how it executes, and giving structured feedback when things go wrong -- is a pattern that applies far beyond Scheme.
+</p>
+
+<p>
+The scheme-agent project is open source at <a href="https://github.com/ChaosEternal/memory-solution">https://github.com/ChaosEternal/memory-solution</a>. The harness-checker component is available separately at <a href="https://github.com/Chaos-AI-Projects/scheme-harness-checker">https://github.com/Chaos-AI-Projects/scheme-harness-checker</a>.
+</p>
+</div>
+</div>
+<div class="post-date">21 Mar 2018</div><h1 class="post-title"><a href="http://chaoseternal.net/fix-a-greenplum-performance-issue.html">Fixing a greenplum performance issue</a></h1>
 
 
 <div id="outline-container-sec-1" class="outline-2">

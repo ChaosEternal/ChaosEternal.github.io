@@ -1,0 +1,283 @@
+/* doc-review standalone deck — style subset (MS-619 slice 3).
+ *
+ * Every rule below except the "page chrome" block at the end is copied
+ * verbatim from doc-review/static/style.css at memory-solution 657c879, with
+ * the `.line-content` half of each shared selector list dropped: those halves
+ * target the review app's source table, which no published page has.  Nothing
+ * else was rewritten, because a rule retuned here would make a slide render
+ * differently on Pages than it does behind the Present button, which is the
+ * drift the shared view_specs.py exists to prevent.
+ *
+ * Inline `code` inside a slide has no rule here for the same reason: it has
+ * none upstream either.  Add it there first if it should exist.
+ *
+ * The site's own /static/style.css is untouched and unrelated; this file is
+ * loaded only by slides/standalone.html.
+ */
+
+:root {
+    --border: #d1d5db;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #222;
+    background: #fafafa;
+}
+
+/* ── Mermaid diagram containers ── */
+/* The div holds escaped diagram source.  Diagrams are out of scope for the
+ * published page, which loads no mermaid.js, so this is the fallback view:
+ * reflowed onto one line the source is unreadable, hence its own `pre`. */
+.presentation .slide .mermaid {
+    background: #fff;
+    padding: .25em 0;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+.presentation .slide .mermaid svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ── Markdown tables ── */
+/* `max-width` alone does not bound a table, because its used width cannot go
+ * below min-content — one long URL in a cell would overflow the fixed-layout
+ * row.  Laying the table out as a block lets `overflow` bite, so a wide table
+ * scrolls on its own instead: `max-content` keeps a narrow table narrow, and
+ * `border-collapse` is inherited, so the anonymous table box the rows still
+ * form picks it up. */
+.presentation .slide table {
+    border-collapse: collapse;
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow: auto;
+    margin: 0 0 .5em;
+}
+
+.presentation .slide table:last-child {
+    margin-bottom: 0;
+}
+
+/* Header and body cells are bordered together.  Bordering only `td` leaves the
+ * header row floating free of the grid it heads. */
+.presentation .slide th,
+.presentation .slide td {
+    border: 1px solid var(--border);
+    padding: .3em .6em;
+}
+
+/* The UA centres `th` and leaves `td` alone, so a header disagrees with its
+ * own column until something says otherwise.  `inherit` rather than `left`:
+ * the same block HTML renders into `.layout-centered` and `.theme-uncover`
+ * slides, where a hardcoded side would leave the header the one thing on the
+ * slide not centred. */
+.presentation .slide th {
+    text-align: inherit;
+    background: #f3f4f6;
+    font-weight: 600;
+}
+
+/* Column alignment from the table's delimiter row, which `_sanitize_html`
+ * translates from markdown-it's `style="text-align:…"` into these classes.  A
+ * cell carries one only when the row asked for it.  `th.`/`td.` rather than a
+ * bare descendant: naming the tag keeps a non-cell from claiming an
+ * alignment. */
+.presentation .slide th.align-left,
+.presentation .slide td.align-left {
+    text-align: left;
+}
+
+.presentation .slide th.align-center,
+.presentation .slide td.align-center {
+    text-align: center;
+}
+
+.presentation .slide th.align-right,
+.presentation .slide td.align-right {
+    text-align: right;
+}
+
+/* ── Marp presentation mode (#452) ── */
+
+/* The deck covers the page. */
+.presentation {
+    position: fixed;
+    inset: 0;
+    background: #fff;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    outline: none;
+}
+.presentation:fullscreen { background: #fff; }
+.presentation.theme-gaia:fullscreen { background: #fffefb; }
+
+/* On-screen controls (#455): the pointer equivalent of the keyboard actions,
+ * for phones where there is no arrow key and no Esc.  The bar spans the deck
+ * but is inert, so it cannot swallow slide content — the slide underneath
+ * stays scrollable and selectable; only the buttons take pointer events.
+ * The published deck builds prev and next only: there is nothing behind the
+ * slides to exit to, so `control-exit` keeps its rule unused rather than
+ * dropped, since which controls a page asks for is deck_dom.js's call. */
+.presentation-controls {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.presentation-control {
+    position: absolute;
+    pointer-events: auto;
+    /* >= 44px: the smallest reliably tappable target on a phone. */
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    /* Semi-transparent, carried by the background alone, never by a group
+     * `opacity`, which would fade the white glyph along with the circle.
+     * White on rgba(0,0,0,.5) over the deck's white background is ~3.9:1,
+     * clear of the 3:1 floor for a UI control. */
+    background: rgba(0, 0, 0, 0.5);
+    transition: background-color 0.15s ease;
+}
+.presentation-control:hover,
+.presentation-control:focus { background: rgba(0, 0, 0, 0.8); outline: none; }
+
+/* Along the edges, over the slide's own padding: prev/next fall under the
+ * thumbs, exit stays clear of .slide-number in the bottom-right corner. */
+.presentation-control.control-prev { left: .75rem; top: 50%; transform: translateY(-50%); }
+.presentation-control.control-next { right: .75rem; top: 50%; transform: translateY(-50%); }
+.presentation-control.control-exit { right: .75rem; top: .75rem; }
+
+.presentation .slide {
+    position: relative;  /* anchors .slide-number */
+    box-sizing: border-box;
+    width: min(96vw, calc((100vh - 4rem) * 16 / 9));
+    height: min(calc(100vh - 4rem), calc(96vw * 9 / 16));
+    padding: 3rem 4rem;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+    font-size: clamp(1rem, 2.2vh, 1.6rem);
+}
+.presentation .slide[hidden] { display: none; }
+
+.presentation .slide h1 { font-size: 2.4em; margin: 0 0 0.3em; }
+.presentation .slide h2 { font-size: 1.8em; margin: 0 0 0.3em; }
+.presentation .slide h3 { font-size: 1.4em; margin: 0 0 0.3em; }
+.presentation .slide p,
+.presentation .slide ul,
+.presentation .slide ol { margin: 0 0 0.5em; line-height: 1.5; }
+.presentation .slide li { margin-bottom: 0.25em; }
+.presentation .slide pre {
+    font-size: 0.75em;
+    overflow: auto;
+    background: #f6f8fa;
+    padding: 0.75em;
+    border-radius: 4px;
+}
+.presentation .slide img { max-width: 100%; }
+
+.presentation .slide-number {
+    position: absolute;
+    bottom: 1.5rem;
+    right: 2rem;
+    font-size: 0.8rem;
+    color: #999;
+}
+
+/* Themes are constrained to this set by view_specs.PRESENTATION_THEMES. */
+.presentation.theme-gaia { background: #fffefb; color: #2c2c2c; }
+.presentation.theme-gaia .slide h1 { color: #1a4f9c; }
+.presentation.theme-uncover { background: #fff; text-align: center; }
+.presentation.theme-uncover .slide { align-items: center; }
+
+/* Per-slide layouts, from a Marp `<!-- _class: … -->` directive (#462), and
+ * constrained to this set by view_specs.PRESENTATION_LAYOUTS.  `default` gets
+ * no rule of its own on purpose: the base `.slide` block above IS the
+ * default. */
+.presentation .slide.layout-title { text-align: center; }
+.presentation .slide.layout-title h1 { font-size: 3.2em; margin-bottom: 0.2em; }
+.presentation .slide.layout-title h2 { font-size: 1.5em; font-weight: normal; }
+/* Subtitle weight without hiding it: #57606a on white is 4.6:1. */
+.presentation .slide.layout-title p { font-size: 1.15em; color: #57606a; }
+
+/* `.slide` is a flex column, so centring needs the cross axis too — text-align
+ * alone leaves each block stretched the full width. */
+.presentation .slide.layout-centered { text-align: center; align-items: center; }
+
+/* Uniform across the slide, deliberately.  `buildDeck` gives every row its own
+ * `div.slide-block`, so two paragraphs on a slide are never siblings. */
+.presentation .slide.layout-quote p {
+    font-size: 1.5em;
+    font-style: italic;
+    line-height: 1.5;
+    border-left: 4px solid #d0d7de;
+    padding-left: 0.8em;
+}
+
+/* Front matter shown as metadata rather than a bogus setext heading (#452). */
+pre.front-matter {
+    background: #f6f8fa;
+    border-left: 3px solid #d0d7de;
+    color: #57606a;
+    font-size: 0.85em;
+    padding: 0.5em 0.75em;
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+/* ── Page chrome, new here ──
+ *
+ * The three standalone-* classes have no rule upstream: in the review app the
+ * deck opens over a page that is already drawn, and here it opens over
+ * nothing.  So this block is the whole of the page before Pyodide finishes,
+ * and after it fails.
+ *
+ * `#deck-status` carries its state as TEXT, which is what a viewer on slow
+ * conference wifi reads instead of a blank screen.  It is centred in the
+ * viewport rather than parked in a corner for that reason.  The deck paints
+ * over it at z-index 100 once mounted, and standalone.js empties the text at
+ * the same moment, so the two never fight. */
+body.standalone-presentation {
+    /* The deck is `position: fixed`, so the page behind it must not scroll on
+     * its own: two scrollbars on a phone is how a slide becomes unreadable.
+     * This is the standalone counterpart of `body.presenting` upstream. */
+    overflow: hidden;
+    height: 100vh;
+}
+
+.standalone-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    padding: 1rem;
+    text-align: center;
+    font-size: 1.1rem;
+    color: #57606a;
+}
+
+/* An empty status element must take no space, or it holds the viewport open
+ * under the deck and the page scrolls behind the slides. */
+.standalone-status:empty { display: none; }
+
+/* Failure is the one state a viewer can act on, so it is the one state that
+ * does not look like progress. */
+.standalone-status[data-state="error"],
+.standalone-status[data-state="unavailable"] { color: #b42318; }

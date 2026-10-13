@@ -1,22 +1,23 @@
-/* doc-review standalone deck — style subset (MS-619 slice 3).
- *
- * Every rule below except the "page chrome" block at the end is copied
- * verbatim from doc-review/static/style.css at memory-solution 657c879, with
- * the `.line-content` half of each shared selector list dropped: those halves
- * target the review app's source table, which no published page has.  Nothing
- * else was rewritten, because a rule retuned here would make a slide render
- * differently on Pages than it does behind the Present button, which is the
- * drift the shared view_specs.py exists to prevent.
- *
- * Inline `code` inside a slide has no rule here for the same reason: it has
- * none upstream either.  Add it there first if it should exist.
- *
- * The site's own /static/style.css is untouched and unrelated; this file is
- * loaded only by slides/standalone.html.
- */
+/* doc-review — responsive CSS */
 
 :root {
+    --bg: #fafafa;
+    --fg: #222;
+    --accent: #2563eb;
     --border: #d1d5db;
+    --comment-bg: #fffbeb;
+    --resolved-bg: #f0fdf4;
+    --sidebar-w: 360px;
+    --line-hover: #f3f4f6;
+    --has-comment: #fef3c7;
+    --nav-w: 220px;
+    /* How far body text sits right of its headings in the review view.  In
+     * `rem` on purpose: the cell sets this as padding and each heading takes
+     * it back as a negative margin, and an `em` on the heading would resolve
+     * against the heading's own font-size instead of the cell's.  The UA sizes
+     * h1 at 2em and h6 at .67em, so an `em` outdent puts every level in a
+     * different column and hangs h1 outside the cell entirely. */
+    --md-indent: 1.5rem;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,34 +26,413 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     font-size: 15px;
     line-height: 1.5;
-    color: #222;
-    background: #fafafa;
+    color: var(--fg);
+    background: var(--bg);
+}
+
+header {
+    padding: .5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: #fff;
+}
+header nav a { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+main { padding: 1rem; }
+
+/* ── Index page ── */
+.file-list { list-style: none; }
+.file-list li { padding: .35rem 0; }
+.file-list a { color: var(--accent); text-decoration: none; }
+.file-list a:hover { text-decoration: underline; }
+
+/* ── File header ── */
+.file-header { display: flex; align-items: baseline; gap: 1rem; margin-bottom: .75rem; flex-wrap: wrap; }
+.file-header h1 { font-size: 1.25rem; }
+.file-id { font-size: .75rem; color: #666; font-family: monospace; }
+
+/* ── File navigator toggle (mobile) ── */
+.file-nav-toggle {
+    display: none;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .25rem .5rem;
+    cursor: pointer;
+    font-size: .85rem;
+    color: var(--accent);
+}
+
+/* ── Column toggle buttons ── */
+.col-toggles {
+    display: inline-flex;
+    gap: .25rem;
+    margin-left: auto;
+}
+
+.col-toggle-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: .25rem .5rem;
+    cursor: pointer;
+    font-size: .8rem;
+    color: var(--accent);
+}
+
+.col-toggle-btn:hover {
+    background: var(--line-hover);
+}
+
+.col-toggle-btn.active {
+    background: #dbeafe;
+    border-color: var(--accent);
+}
+
+/* ── Hidden column states ── */
+.file-nav.col-hidden {
+    display: none;
+}
+
+.comment-sidebar.col-hidden {
+    display: none;
+}
+
+/* ── View layout (nav + review container) ── */
+.view-layout {
+    display: flex;
+    gap: 0;
+    align-items: flex-start;
+}
+
+/* ── File navigator ── */
+.file-nav {
+    width: var(--nav-w);
+    min-width: var(--nav-w);
+    max-height: 90vh;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    padding: .5rem 0;
+    background: #fff;
+    position: sticky;
+    top: 0;
+}
+
+.file-nav-link {
+    display: block;
+    padding: .25rem .75rem;
+    color: var(--fg);
+    text-decoration: none;
+    font-size: .8rem;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-nav-link:hover {
+    background: var(--line-hover);
+    color: var(--accent);
+}
+
+.file-nav-link.active {
+    background: #dbeafe;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ── File navigator: filter + tree ── */
+.file-nav-filter {
+    display: block;
+    width: calc(100% - 1rem);
+    margin: .25rem .5rem .5rem;
+    padding: .3rem .5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: .8rem;
+    font-family: inherit;
+}
+
+.file-nav-tree {
+    padding: 0 .25rem;
+}
+
+.nav-dir {
+    margin: 0;
+}
+
+.nav-dir-name {
+    display: block;
+    padding: .2rem .5rem;
+    font-size: .8rem;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    cursor: pointer;
+    user-select: none;
+    color: #555;
+    font-weight: 600;
+}
+
+.nav-dir-name:hover {
+    background: var(--line-hover);
+}
+
+.nav-dir-children {
+    padding-left: .75rem;
+}
+
+/* ── Table of contents ── */
+.toc-section {
+    border-top: 1px solid var(--border);
+    margin-top: .5rem;
+    padding-top: .5rem;
+}
+
+.toc-heading {
+    padding: .2rem .5rem;
+    font-size: .8rem;
+    font-weight: 600;
+    color: #555;
+}
+
+.toc-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.toc-item {
+    padding: 0;
+}
+
+.toc-link {
+    display: block;
+    padding: .15rem .75rem;
+    color: var(--fg);
+    text-decoration: none;
+    font-size: .8rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.toc-link:hover {
+    background: var(--line-hover);
+    color: var(--accent);
+}
+
+.toc-level-2 .toc-link { padding-left: 1.5rem; }
+.toc-level-3 .toc-link { padding-left: 2.25rem; }
+.toc-level-4 .toc-link { padding-left: 3rem; }
+.toc-level-5 .toc-link { padding-left: 3.75rem; }
+.toc-level-6 .toc-link { padding-left: 4.5rem; }
+
+/* ── Review container (source + sidebar) ── */
+.review-container {
+    display: flex;
+    flex: 1 1 0;
+    gap: 0;
+    align-items: flex-start;
+    min-width: 0;
+    margin-left: 1rem;
+}
+
+/* ── Source lines table ── */
+.source-lines {
+    flex: 1 1 0;
+    border-collapse: collapse;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    font-size: 14px;
+    width: 100%;
+    table-layout: fixed;
+}
+
+.source-line:hover { background: var(--line-hover); }
+.source-line.has-comments { background: var(--has-comment); }
+.source-line.active { background: #dbeafe; }
+
+.line-num {
+    display: none;
+}
+
+/* No `white-space` here on purpose.  The cell held raw source lines until
+ * #393 swapped it to rendered markdown, and the `pre-wrap` left behind turned
+ * every newline markdown-it emits between block tags into a visible break — a
+ * hard-wrapped paragraph kept the source's line breaks instead of reflowing to
+ * the viewport.  The descendants whose spacing really is content carry their
+ * own rule below. */
+/* The left padding carries the body indent: .5em of gutter plus 1.5em that the
+ * headings below pull back out of.  The indent lives here, on the cell, rather
+ * than as a `margin-left` on each block, because the cell is the one box that
+ * every block shares.  A per-block margin has to name each block type, which
+ * silently misses the ones added later (`hr`, `pre.front-matter`); it applies
+ * again to the same tags nested inside a quote or a list item, compounding the
+ * indent per level; and it puts a `max-width: 100%` table 1.5em wider than the
+ * box bounding it, which is how a wide table gets back over `.line-marker`. */
+.line-content {
+    padding: 0 .5em 0 calc(.5em + var(--md-indent));
+    overflow-wrap: break-word;
+    cursor: pointer;
+}
+
+/* ── Paragraph and quote indent inside source lines ── */
+/* The `*` reset at the top of this file zeroes every margin, and #388 gave the
+ * indent back to lists only.  Paragraphs and blockquotes were leaning on those
+ * pre-wrap newlines for their separation, so these rules and the removal above
+ * are one change: either half alone reads worse than neither.
+ *
+ * The `:last-child` trim below is scoped to the two containers that really do
+ * hold several paragraphs.  Unscoped it matched every top-level paragraph as
+ * well, because `view_specs.source_row_specs` gives each block its own row and
+ * a paragraph is therefore the only child of its cell: a rule that reads as
+ * though it trims one trailing gap in fact cancelled the gap between every
+ * pair of paragraphs in the document. */
+.line-content p,
+.standalone-document p {
+    margin: 0 0 .6em;
+}
+
+.line-content blockquote > p:last-child,
+.line-content li > p:last-child,
+.standalone-document blockquote > p:last-child,
+.standalone-document li > p:last-child {
+    margin-bottom: 0;
+}
+
+/* 1.5em is the list indent used below, so a quote and a bullet at the same
+ * depth line up to within the width of the rule itself. */
+.line-content blockquote,
+.standalone-document blockquote {
+    padding-left: 1.5em;
+    border-left: 3px solid var(--border);
+    color: #57606a;
+}
+
+/* ── List indent inside source lines ── */
+.line-content ul,
+.line-content ol,
+.standalone-document ul,
+.standalone-document ol {
+    padding-left: 1.5em;
+    margin: 0;
+}
+
+.line-content li,
+.standalone-document li {
+    list-style-position: outside;
+}
+
+/* ── Heading rhythm inside source lines ── */
+/* Review mode styled headings not at all: the `*` reset takes the UA margins
+ * and nothing hands them back, so a heading sat flush against the paragraph
+ * above it, in the same column.  The negative left margin is the cell's indent
+ * spent: it cites the same `--md-indent` token the padding does, so the two
+ * cannot drift apart, and a heading lands back on the .5em gutter whatever
+ * that token is set to.
+ *
+ * The child combinator is load-bearing.  A heading inside a blockquote or a
+ * list item is not a section break, and outdenting it would hang it past the
+ * text it belongs to.
+ *
+ * The two vertical sides are deliberately unequal, because a heading belongs
+ * to the section it opens and equal space leaves it floating between two.
+ * Margins do not collapse out of a table cell, so the gap above a heading is
+ * this margin plus the previous row's .6em, which is the intent: a section
+ * break should outweigh a paragraph break.  These two are `rem` for the same
+ * reason as the outdent: in `em` an h1 would take twice the space of an h4.
+ * Known cost: `.line-marker` is `vertical-align: top`, so on a heading row the
+ * comment button sits this margin above the heading text.  Kept small, and in
+ * a unit that does not grow with the heading, for that reason.
+ *
+ * The presentation deck is not in this selector list.  It sizes its own
+ * headings (`.presentation .slide h1`) and puts many blocks in one container
+ * rather than a row each, so none of the arithmetic above holds there. */
+.line-content > h1,
+.line-content > h2,
+.line-content > h3,
+.line-content > h4,
+.line-content > h5,
+.line-content > h6 {
+    margin: .6rem 0 .2rem calc(-1 * var(--md-indent));
+    line-height: 1.25;
+}
+
+/* ── Inline code ── */
+/* Runs of spaces inside a code span are content, not formatting, so this is
+ * the one inline element that keeps the whitespace mode the cell gave up. */
+.line-content code,
+.standalone-document code {
+    background: #f3f4f6;
+    padding: .1em .3em;
+    border-radius: 3px;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    font-size: .9em;
+    white-space: pre-wrap;
+}
+
+/* ── Fenced code blocks (<pre><code> from markdown parser) ── */
+.line-content pre,
+.standalone-document pre {
+    background: #f3f4f6;
+    padding: .5em .75em;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0;
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    font-size: .9em;
+    white-space: pre;
+}
+
+/* `white-space` is restated because the inline-code rule above matches this
+ * element too, and a declaration ON the element beats the `pre` its parent
+ * only offers by inheritance.  Without it fenced code soft-wraps and the
+ * `overflow-x: auto` above becomes unreachable. */
+.line-content pre code,
+.standalone-document pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+    white-space: pre;
 }
 
 /* ── Mermaid diagram containers ── */
-/* The div holds escaped diagram source.  Diagrams are out of scope for the
- * published page, which loads no mermaid.js, so this is the fallback view:
- * reflowed onto one line the source is unreadable, hence its own `pre`. */
-.presentation .slide .mermaid {
+/* The div holds escaped diagram source until mermaid.js replaces it, and it
+ * stays visible when the parse fails.  Reflowed onto one line it is unreadable,
+ * so the container keeps its own `pre` rather than relying on the cell's.
+ *
+ * Review and present are one selector list, as for tables below: the deck
+ * draws its own diagrams into `.slide-block`, which does not sit under
+ * `.line-content`, so a slide would otherwise lose both the `pre` that makes
+ * the fallback readable and the bound on the rendered SVG. */
+.line-content .mermaid,
+.presentation .slide .mermaid,
+.standalone-document .mermaid {
     background: #fff;
     padding: .25em 0;
     white-space: pre;
     overflow-x: auto;
 }
 
-.presentation .slide .mermaid svg {
+.line-content .mermaid svg,
+.presentation .slide .mermaid svg,
+.standalone-document .mermaid svg {
     max-width: 100%;
     height: auto;
 }
 
 /* ── Markdown tables ── */
-/* `max-width` alone does not bound a table, because its used width cannot go
+/* Review and present are one selector list rather than two rules: a deck
+ * renders the same block HTML into `.slide-block`, which does not sit under
+ * `.line-content`, and a separate copy is how the two drift apart.
+ *
+ * `max-width` alone does not bound a table, because its used width cannot go
  * below min-content — one long URL in a cell would overflow the fixed-layout
- * row.  Laying the table out as a block lets `overflow` bite, so a wide table
- * scrolls on its own instead: `max-content` keeps a narrow table narrow, and
- * `border-collapse` is inherited, so the anonymous table box the rows still
- * form picks it up. */
-.presentation .slide table {
+ * row and paint over `.line-marker`.  Laying the table out as a block lets
+ * `overflow` bite, so a wide table scrolls on its own instead: `max-content`
+ * keeps a narrow table narrow, and `border-collapse` is inherited, so the
+ * anonymous table box the rows still form picks it up. */
+.line-content table,
+.presentation .slide table,
+.standalone-document table {
     border-collapse: collapse;
     display: block;
     width: max-content;
@@ -61,14 +441,20 @@ body {
     margin: 0 0 .5em;
 }
 
-.presentation .slide table:last-child {
+.line-content table:last-child,
+.presentation .slide table:last-child,
+.standalone-document table:last-child {
     margin-bottom: 0;
 }
 
 /* Header and body cells are bordered together.  Bordering only `td` leaves the
  * header row floating free of the grid it heads. */
+.line-content th,
+.line-content td,
 .presentation .slide th,
-.presentation .slide td {
+.presentation .slide td,
+.standalone-document th,
+.standalone-document td {
     border: 1px solid var(--border);
     padding: .3em .6em;
 }
@@ -77,36 +463,242 @@ body {
  * own column until something says otherwise.  `inherit` rather than `left`:
  * the same block HTML renders into `.layout-centered` and `.theme-uncover`
  * slides, where a hardcoded side would leave the header the one thing on the
- * slide not centred. */
-.presentation .slide th {
+ * slide not centred.
+ *
+ * Nothing here keys off an `align` attribute, because no cell has one:
+ * markdown-it emits column alignment as `style="text-align:…"`, which
+ * `_sanitize_html` translates into the `align-*` classes below. */
+.line-content th,
+.presentation .slide th,
+.standalone-document th {
     text-align: inherit;
     background: #f3f4f6;
     font-weight: 600;
 }
 
-/* Column alignment from the table's delimiter row, which `_sanitize_html`
- * translates from markdown-it's `style="text-align:…"` into these classes.  A
- * cell carries one only when the row asked for it.  `th.`/`td.` rather than a
- * bare descendant: naming the tag keeps a non-cell from claiming an
- * alignment. */
+/* Column alignment from the table's delimiter row.  A cell carries one of
+ * these only when the row asked for it, so a table with no alignment keeps the
+ * `inherit` above and reads exactly as before.  Two classes and a type outrank
+ * the one class and one type of the header rule, so an aligned header wins its
+ * column without `!important`.
+ *
+ * `th.` and `td.` rather than a bare descendant: `class` is whitelisted on
+ * `div`, `pre` and `code` too, and only the sanitizer's current refusal to
+ * pass an author-supplied `class` through keeps a non-cell from claiming an
+ * alignment.  Naming the tag closes that by construction instead. */
+.line-content th.align-left,
+.line-content td.align-left,
 .presentation .slide th.align-left,
-.presentation .slide td.align-left {
+.presentation .slide td.align-left,
+.standalone-document th.align-left,
+.standalone-document td.align-left {
     text-align: left;
 }
 
+.line-content th.align-center,
+.line-content td.align-center,
 .presentation .slide th.align-center,
-.presentation .slide td.align-center {
+.presentation .slide td.align-center,
+.standalone-document th.align-center,
+.standalone-document td.align-center {
     text-align: center;
 }
 
+.line-content th.align-right,
+.line-content td.align-right,
 .presentation .slide th.align-right,
-.presentation .slide td.align-right {
+.presentation .slide td.align-right,
+.standalone-document th.align-right,
+.standalone-document td.align-right {
     text-align: right;
 }
 
-/* ── Marp presentation mode (#452) ── */
+.line-marker {
+    width: 2em;
+    text-align: center;
+    vertical-align: top;
+}
 
-/* The deck covers the page. */
+.marker-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 1.5em;
+    height: 1.5em;
+    font-size: .75rem;
+    cursor: pointer;
+    line-height: 1.5em;
+}
+
+/* ── Comment sidebar (desktop) — inline panel ── */
+.comment-sidebar {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    max-height: 90vh;
+    overflow-y: auto;
+    border-left: 1px solid var(--border);
+    padding: .75rem;
+    background: #fff;
+    position: sticky;
+    top: 0;
+}
+
+.sidebar-hint { color: #9ca3af; font-size: .85rem; }
+
+/* ── Comment cards ── */
+.comment-card {
+    background: var(--comment-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .5rem .75rem;
+    margin-bottom: .5rem;
+    font-size: .85rem;
+}
+.comment-card.resolved { background: var(--resolved-bg); opacity: .7; }
+
+.comment-meta { color: #666; font-size: .75rem; margin-bottom: .25rem; }
+.comment-body { white-space: pre-wrap; }
+
+.comment-actions { margin-top: .35rem; }
+.comment-actions button,
+.comment-actions .action-link {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: .75rem;
+    padding: 0;
+    margin-right: .5rem;
+}
+.comment-actions button:hover,
+.comment-actions .action-link:hover { text-decoration: underline; }
+
+.reply-thread { margin-left: 1rem; border-left: 2px solid var(--border); padding-left: .5rem; }
+
+/* A reply sits under the root it answers (#465 Phase 2): indented, so the
+   thread reads as a thread, and accented so it is still legible when the
+   sidebar is narrow enough that 1rem is easy to miss. */
+.comment-card.reply { border-left: 3px solid var(--accent); margin-left: 1rem; }
+
+.detached-badge {
+    display: inline-block;
+    background: #fef3c7;
+    color: #92400e;
+    padding: .1rem .35rem;
+    border-radius: 3px;
+    font-size: .7rem;
+    font-weight: 600;
+}
+
+.comment-card.detached {
+    border-left: 3px solid #f59e0b;
+}
+
+.reply-badge {
+    display: inline-block;
+    background: #dbeafe;
+    color: var(--accent);
+    padding: .1rem .35rem;
+    border-radius: 3px;
+    font-size: .7rem;
+    font-weight: 600;
+}
+
+/* ── Comment form ── */
+.comment-form { margin-top: .5rem; }
+.comment-form label { display: block; margin-bottom: .35rem; font-size: .85rem; }
+.comment-form input[type="text"],
+.comment-form textarea {
+    display: block;
+    width: 100%;
+    padding: .35rem .5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: .85rem;
+    font-family: inherit;
+    margin-top: .15rem;
+}
+.comment-form button {
+    margin-top: .35rem;
+    margin-right: .25rem;
+    padding: .3rem .75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: .85rem;
+}
+.comment-form button[type="submit"] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.cancel-btn { background: #fff; }
+
+/* ── Inline comments (mobile) ── */
+.inline-comments {
+    display: none;
+}
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+    .view-layout { flex-direction: column; }
+    .review-container { flex-direction: column; }
+
+    .file-nav {
+        display: none;
+        width: 100%;
+        min-width: 100%;
+        max-height: 50vh;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        position: static;
+    }
+
+    .file-nav.open {
+        display: block;
+    }
+
+    .file-nav-toggle {
+        display: inline-block;
+    }
+
+    .review-container {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .comment-sidebar {
+        display: none;
+    }
+
+    .inline-comments {
+        display: block;
+        padding: .5rem;
+        background: #fff;
+        border-top: 1px solid var(--border);
+    }
+
+    .source-lines { font-size: 13px; }
+}
+
+/* Pyodide renderer status indicator (#445) */
+.pyodide-status {
+    font-size: 0.75rem;
+    color: #999;
+    margin-left: 0.5rem;
+}
+.pyodide-status.ready { color: #2a7; }
+.pyodide-status.fallback { color: #999; }
+
+/* ── Marp presentation mode (#452) ──
+ *
+ * Presentation mode is a grouping + CSS layer over the same blocks review mode
+ * renders; nothing here changes how a block is anchored.  Strictly read-only:
+ * the comment column is hidden and the comment UI is unmounted by app.js.
+ */
+body.presenting { overflow: hidden; }
+
+/* The deck covers the page, site header included (#455).  v1 raised
+ * .file-header to z-index: 2 while presenting, which painted the site chrome
+ * over the slides; a read-only deck has no reason to sit under it.  The header
+ * lives outside .view-layout, so hiding the layout does not hide it. */
 .presentation {
     position: fixed;
     inset: 0;
@@ -115,18 +707,22 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    /* The slide's layout box stays 1920x1080 whatever its scale (DR-2), so
+     * on any smaller window it overflows the deck before the transform
+     * shrinks it.  Clipped here, or the page grows scrollbars around a slide
+     * that visibly fits. */
+    overflow: hidden;
     outline: none;
 }
+/* Real full screen is requested by app.js; :fullscreen only has to keep the
+ * theme background, since the browser paints its own backdrop behind it. */
 .presentation:fullscreen { background: #fff; }
 .presentation.theme-gaia:fullscreen { background: #fffefb; }
 
 /* On-screen controls (#455): the pointer equivalent of the keyboard actions,
  * for phones where there is no arrow key and no Esc.  The bar spans the deck
  * but is inert, so it cannot swallow slide content — the slide underneath
- * stays scrollable and selectable; only the buttons take pointer events.
- * The published deck builds prev and next only: there is nothing behind the
- * slides to exit to, so `control-exit` keeps its rule unused rather than
- * dropped, since which controls a page asks for is deck_dom.js's call. */
+ * stays scrollable and selectable; only the buttons take pointer events. */
 .presentation-controls {
     position: absolute;
     inset: 0;
@@ -146,10 +742,13 @@ body {
     font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
-    /* Semi-transparent, carried by the background alone, never by a group
-     * `opacity`, which would fade the white glyph along with the circle.
-     * White on rgba(0,0,0,.5) over the deck's white background is ~3.9:1,
-     * clear of the 3:1 floor for a UI control. */
+    /* Semi-transparent, as asked — but carried by the background alone, never
+     * by a group `opacity`, which would fade the white glyph along with the
+     * circle.  White on rgba(0,0,0,.5) over the deck's white background is
+     * ~3.9:1, clear of the 3:1 floor for a UI control.  A phone has no hover
+     * and no focus before the first tap, so the resting state is the only one
+     * that counts: these controls exist *because* the reporter could not
+     * navigate on a phone, and an invisible control is the same bug again. */
     background: rgba(0, 0, 0, 0.5);
     transition: background-color 0.15s ease;
 }
@@ -162,20 +761,80 @@ body {
 .presentation-control.control-next { right: .75rem; top: 50%; transform: translateY(-50%); }
 .presentation-control.control-exit { right: .75rem; top: .75rem; }
 
+/* A fixed 1920x1080 stage, scaled as a whole (DR-2), after frontend-slides'
+ * viewport-base.css.  Sizes inside a slide are therefore in stage pixels, not
+ * viewport units: a slide is laid out once and looks the same on a phone and
+ * a monitor.  deck_dom.js's attachStageFit() supplies --stage-scale.  `flex:
+ * none` keeps the deck's flexbox from shrinking the box it is about to scale,
+ * and the deck centres it, so scaling about the centre lands it mid-window. */
 .presentation .slide {
     position: relative;  /* anchors .slide-number */
     box-sizing: border-box;
-    width: min(96vw, calc((100vh - 4rem) * 16 / 9));
-    height: min(calc(100vh - 4rem), calc(96vw * 9 / 16));
-    padding: 3rem 4rem;
+    flex: none;
+    width: 1920px;
+    height: 1080px;
+    transform: scale(var(--stage-scale, 1));
+    transform-origin: center center;
+    padding: 96px 128px;
     overflow: auto;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 0.75rem;
-    font-size: clamp(1rem, 2.2vh, 1.6rem);
+    gap: 20px;
+    font-size: 30px;
 }
 .presentation .slide[hidden] { display: none; }
+
+/* The standalone page's two views (DR-6).  `display: flex` above outranks the
+ * user agent's [hidden] rule, so hiding the deck needs its own.  The toggle
+ * sits top-right, the corner the review app's exit control uses and the
+ * standalone page leaves empty, above the deck's z-index. */
+.presentation[hidden] { display: none; }
+
+.view-toggle {
+    position: fixed;
+    top: .75rem;
+    right: .75rem;
+    z-index: 101;
+    min-height: 44px;
+    padding: 0 1rem;
+    border: none;
+    border-radius: 22px;
+    color: #fff;
+    font: inherit;
+    font-size: .95rem;
+    cursor: pointer;
+    background: rgba(0, 0, 0, 0.5);
+}
+.view-toggle:hover,
+.view-toggle:focus { background: rgba(0, 0, 0, 0.8); outline: none; }
+
+.standalone-document {
+    max-width: 50rem;
+    margin: 0 auto;
+    padding: 4rem 1.25rem 3rem;
+    line-height: 1.6;
+}
+.standalone-document[hidden] { display: none; }
+/* Focused only so Space scrolls it; a ring round the whole page says nothing. */
+.standalone-document:focus { outline: none; }
+.standalone-document img { max-width: 100%; }
+.standalone-document > h1,
+.standalone-document > h2,
+.standalone-document > h3,
+.standalone-document > h4 {
+    margin: 1.6rem 0 .5rem;
+    line-height: 1.25;
+}
+.standalone-document > hr {
+    margin: 2rem 0;
+    border: none;
+    border-top: 1px solid var(--border);
+}
+.standalone-document > ul,
+.standalone-document > ol,
+.standalone-document > pre,
+.standalone-document > blockquote { margin-bottom: .8em; }
 
 .presentation .slide h1 { font-size: 2.4em; margin: 0 0 0.3em; }
 .presentation .slide h2 { font-size: 1.8em; margin: 0 0 0.3em; }
@@ -195,9 +854,9 @@ body {
 
 .presentation .slide-number {
     position: absolute;
-    bottom: 1.5rem;
-    right: 2rem;
-    font-size: 0.8rem;
+    bottom: 40px;
+    right: 56px;
+    font-size: 20px;
     color: #999;
 }
 
@@ -209,20 +868,43 @@ body {
 
 /* Per-slide layouts, from a Marp `<!-- _class: … -->` directive (#462), and
  * constrained to this set by view_specs.PRESENTATION_LAYOUTS.  `default` gets
- * no rule of its own on purpose: the base `.slide` block above IS the
- * default. */
+ * no rule of its own on purpose: the base `.slide` block above IS the default,
+ * so a slide with no directive looks exactly as it did before #462. */
 .presentation .slide.layout-title { text-align: center; }
 .presentation .slide.layout-title h1 { font-size: 3.2em; margin-bottom: 0.2em; }
 .presentation .slide.layout-title h2 { font-size: 1.5em; font-weight: normal; }
 /* Subtitle weight without hiding it: #57606a on white is 4.6:1. */
 .presentation .slide.layout-title p { font-size: 1.15em; color: #57606a; }
 
+/* Title-slide staggered reveal (DR-2): each block rises in a beat after the
+ * one before it.  It replays on every visit, because showing a slide flips it
+ * from display: none, which restarts its animations.  `both` holds the first
+ * frame through the delay, so a later block never flashes in early. */
+@keyframes slide-reveal {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: none; }
+}
+.presentation .slide.layout-title .slide-block {
+    animation: slide-reveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.presentation .slide.layout-title .slide-block:nth-child(2) { animation-delay: 0.12s; }
+.presentation .slide.layout-title .slide-block:nth-child(3) { animation-delay: 0.24s; }
+.presentation .slide.layout-title .slide-block:nth-child(n+4) { animation-delay: 0.36s; }
+
+/* Motion is decoration here, so a reader who asked for less gets none. */
+@media (prefers-reduced-motion: reduce) {
+    .presentation .slide.layout-title .slide-block { animation: none; }
+}
+
 /* `.slide` is a flex column, so centring needs the cross axis too — text-align
  * alone leaves each block stretched the full width. */
 .presentation .slide.layout-centered { text-align: center; align-items: center; }
 
 /* Uniform across the slide, deliberately.  `buildDeck` gives every row its own
- * `div.slide-block`, so two paragraphs on a slide are never siblings. */
+ * `div.slide-block`, so two paragraphs on a slide are never siblings: a
+ * positional rule meaning "the attribution line" (`p:last-of-type`) would in
+ * fact match every paragraph.  Singling one out needs a marker in the DOM that
+ * does not exist, and inventing one is Phase 2 work. */
 .presentation .slide.layout-quote p {
     font-size: 1.5em;
     font-style: italic;
@@ -242,42 +924,252 @@ pre.front-matter {
     white-space: pre-wrap;
 }
 
-/* ── Page chrome, new here ──
- *
- * The three standalone-* classes have no rule upstream: in the review app the
- * deck opens over a page that is already drawn, and here it opens over
- * nothing.  So this block is the whole of the page before Pyodide finishes,
- * and after it fails.
- *
- * `#deck-status` carries its state as TEXT, which is what a viewer on slow
- * conference wifi reads instead of a blank screen.  It is centred in the
- * viewport rather than parked in a corner for that reason.  The deck paints
- * over it at z-index 100 once mounted, and standalone.js empties the text at
- * the same moment, so the two never fight. */
-body.standalone-presentation {
-    /* The deck is `position: fixed`, so the page behind it must not scroll on
-     * its own: two scrollbars on a phone is how a slide becomes unreadable.
-     * This is the standalone counterpart of `body.presenting` upstream. */
-    overflow: hidden;
-    height: 100vh;
+/* ===== Opt-in deck themes (DR-2), adapted from frontend-slides'
+ * STYLE_PRESETS.md (MIT).  Each commits to one palette and one display/body
+ * font pairing, self-hosted under static/fonts (SIL OFL, licences beside the
+ * files) so a deck renders the same offline and leaks no request to a font
+ * CDN.  Decoration sits on the slide, not the deck, so it scales with the
+ * stage; the deck behind it is the plain letterbox colour.  Names are
+ * constrained by view_specs.PRESENTATION_THEMES. */
+
+@font-face { font-family: "Archivo"; font-weight: 800; font-style: normal; font-display: swap; src: url(fonts/archivo-800-normal.woff2) format("woff2"); }
+@font-face { font-family: "Nunito"; font-weight: 400; font-style: normal; font-display: swap; src: url(fonts/nunito-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Nunito"; font-weight: 700; font-style: normal; font-display: swap; src: url(fonts/nunito-700-normal.woff2) format("woff2"); }
+@font-face { font-family: "Cormorant Garamond"; font-weight: 600; font-style: normal; font-display: swap; src: url(fonts/cormorant-garamond-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "Source Serif 4"; font-weight: 400; font-style: normal; font-display: swap; src: url(fonts/source-serif-4-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Source Serif 4"; font-weight: 700; font-style: normal; font-display: swap; src: url(fonts/source-serif-4-700-normal.woff2) format("woff2"); }
+@font-face { font-family: "Cormorant"; font-weight: 600; font-style: normal; font-display: swap; src: url(fonts/cormorant-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "Cormorant"; font-weight: 400; font-style: italic; font-display: swap; src: url(fonts/cormorant-400-italic.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 300; font-style: normal; font-display: swap; src: url(fonts/ibm-plex-sans-300-normal.woff2) format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url(fonts/ibm-plex-sans-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "Fraunces"; font-weight: 900; font-style: normal; font-display: swap; src: url(fonts/fraunces-900-normal.woff2) format("woff2"); }
+@font-face { font-family: "Work Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url(fonts/work-sans-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Work Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url(fonts/work-sans-600-normal.woff2) format("woff2"); }
+
+/* Swiss Modern: white, black, one red, on a visible 120px grid.  Headings
+ * hang flush left under a red bar; nothing is centred but the title slide. */
+.presentation.theme-swiss-modern,
+.presentation.theme-swiss-modern:fullscreen { background: #fff; color: #000; }
+.presentation.theme-swiss-modern .slide {
+    font-family: "Nunito", sans-serif;
+    background-color: #fff;
+    background-image:
+        linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+    background-size: 120px 120px;
+}
+.presentation.theme-swiss-modern .slide::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 128px;
+    width: 240px;
+    height: 24px;
+    background: #ff3300;
+}
+.presentation.theme-swiss-modern .slide h1,
+.presentation.theme-swiss-modern .slide h2,
+.presentation.theme-swiss-modern .slide h3 {
+    font-family: "Archivo", sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+}
+.presentation.theme-swiss-modern .slide h1 { font-size: 3em; }
+.presentation.theme-swiss-modern .slide strong,
+.presentation.theme-swiss-modern .slide li::marker { color: #ff3300; }
+.presentation.theme-swiss-modern .slide.layout-title { text-align: left; }
+.presentation.theme-swiss-modern .slide.layout-title h1 { font-size: 4.4em; }
+.presentation.theme-swiss-modern .slide.layout-title p { color: #444; }
+.presentation.theme-swiss-modern .slide blockquote {
+    margin: 0;
+    padding-left: 0.8em;
+    border-left: 12px solid #ff3300;
+    font-weight: 700;
 }
 
-.standalone-status {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    padding: 1rem;
-    text-align: center;
-    font-size: 1.1rem;
-    color: #57606a;
+/* Paper & Ink: warm cream, charcoal, a crimson rule.  Literary: serif
+ * throughout, headings in a display Garamond, quotes set as pull quotes. */
+.presentation.theme-paper-ink,
+.presentation.theme-paper-ink:fullscreen { background: #faf9f7; color: #1a1a1a; }
+.presentation.theme-paper-ink .slide {
+    font-family: "Source Serif 4", Georgia, serif;
+    background:
+        linear-gradient(#c41e3a, #c41e3a) 128px 72px / 96px 3px no-repeat,
+        #faf9f7;
+}
+.presentation.theme-paper-ink .slide h1,
+.presentation.theme-paper-ink .slide h2,
+.presentation.theme-paper-ink .slide h3 {
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-weight: 600;
+    line-height: 1.1;
+}
+.presentation.theme-paper-ink .slide h1 {
+    font-size: 3em;
+    padding-bottom: 0.2em;
+    border-bottom: 1px solid #1a1a1a;
+}
+.presentation.theme-paper-ink .slide a,
+.presentation.theme-paper-ink .slide strong,
+.presentation.theme-paper-ink .slide li::marker { color: #c41e3a; }
+.presentation.theme-paper-ink .slide.layout-title h1 { font-size: 4.2em; border-bottom: none; }
+.presentation.theme-paper-ink .slide.layout-title p { color: #555; }
+.presentation.theme-paper-ink .slide blockquote,
+.presentation.theme-paper-ink .slide.layout-quote p {
+    margin: 0;
+    padding: 0.2em 0 0.2em 0.8em;
+    border-left: 3px solid #c41e3a;
+    font-family: "Cormorant Garamond", Georgia, serif;
+    font-size: 1.6em;
+    font-style: normal;
+    line-height: 1.3;
+}
+.presentation.theme-paper-ink .slide pre { background: #f0ede6; }
+
+/* Dark Botanical: near-black with soft blurred warm circles in the corners,
+ * a thin gold line down the left, and italic Cormorant for emphasis. */
+.presentation.theme-dark-botanical,
+.presentation.theme-dark-botanical:fullscreen { background: #0f0f0f; color: #e8e4df; }
+.presentation.theme-dark-botanical .slide {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-weight: 300;
+    background:
+        radial-gradient(circle at 92% 12%, rgba(212, 165, 116, 0.22), transparent 28%),
+        radial-gradient(circle at 80% 30%, rgba(232, 180, 184, 0.14), transparent 24%),
+        radial-gradient(circle at 6% 94%, rgba(201, 184, 150, 0.16), transparent 30%),
+        #0f0f0f;
+}
+.presentation.theme-dark-botanical .slide::before {
+    content: "";
+    position: absolute;
+    top: 160px;
+    bottom: 160px;
+    left: 64px;
+    width: 1px;
+    background: linear-gradient(transparent, #c9b896, transparent);
+}
+.presentation.theme-dark-botanical .slide h1,
+.presentation.theme-dark-botanical .slide h2,
+.presentation.theme-dark-botanical .slide h3 {
+    font-family: "Cormorant", Georgia, serif;
+    font-weight: 600;
+    line-height: 1.1;
+}
+.presentation.theme-dark-botanical .slide h1 { font-size: 3.2em; }
+.presentation.theme-dark-botanical .slide em {
+    font-family: "Cormorant", Georgia, serif;
+    font-style: italic;
+    font-weight: 400;  /* the only italic shipped; a heading's 600 would be faked */
+    font-size: 1.15em;
+    color: #e8b4b8;
+}
+.presentation.theme-dark-botanical .slide strong { font-weight: 600; color: #d4a574; }
+.presentation.theme-dark-botanical .slide a { color: #d4a574; }
+.presentation.theme-dark-botanical .slide li::marker { color: #c9b896; }
+.presentation.theme-dark-botanical .slide.layout-title h1 { font-size: 4.6em; }
+.presentation.theme-dark-botanical .slide.layout-title p,
+.presentation.theme-dark-botanical .slide-number { color: #9a9590; }
+.presentation.theme-dark-botanical .slide pre { background: #1c1b1a; color: #e8e4df; }
+/* The base table header is light grey and sets no colour, which would leave
+ * this theme's light text unreadable on it. */
+.presentation.theme-dark-botanical .slide th { background: #1c1b1a; }
+.presentation.theme-dark-botanical .slide th,
+.presentation.theme-dark-botanical .slide td { border-color: #3a3836; }
+.presentation.theme-dark-botanical .slide blockquote,
+.presentation.theme-dark-botanical .slide.layout-quote p {
+    margin: 0;
+    border-left: 1px solid #c9b896;
+    padding-left: 0.8em;
+    font-family: "Cormorant", Georgia, serif;
+    font-style: italic;
+    font-size: 1.6em;
+}
+/* The default translucent-black controls vanish into a black slide. */
+.presentation.theme-dark-botanical .presentation-control { background: rgba(232, 228, 223, 0.18); }
+.presentation.theme-dark-botanical .presentation-control:hover,
+.presentation.theme-dark-botanical .presentation-control:focus { background: rgba(232, 228, 223, 0.32); }
+
+/* Vintage Editorial: cream paper, heavy Fraunces headlines, and a
+ * circle-line-dot motif in the top-right corner.  Quotes get a bold box. */
+.presentation.theme-vintage-editorial,
+.presentation.theme-vintage-editorial:fullscreen { background: #f5f3ee; color: #1a1a1a; }
+.presentation.theme-vintage-editorial .slide {
+    font-family: "Work Sans", sans-serif;
+    background:
+        radial-gradient(circle, #1a1a1a 7px, transparent 8px) 1656px 216px / 32px 32px no-repeat,
+        linear-gradient(#1a1a1a, #1a1a1a) 1560px 231px / 96px 3px no-repeat,
+        #f5f3ee;
+}
+.presentation.theme-vintage-editorial .slide::before {
+    content: "";
+    position: absolute;
+    top: 96px;
+    right: 160px;
+    width: 168px;
+    height: 168px;
+    border: 3px solid #1a1a1a;
+    border-radius: 50%;
+    background: #e8d4c0;
+    /* Under the text, not over it: the slide's transform makes it the
+     * stacking context, so -1 still paints above the slide background. */
+    z-index: -1;
+}
+.presentation.theme-vintage-editorial .slide h1,
+.presentation.theme-vintage-editorial .slide h2,
+.presentation.theme-vintage-editorial .slide h3 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+}
+.presentation.theme-vintage-editorial .slide h1 { font-size: 3.2em; max-width: 1300px; }
+.presentation.theme-vintage-editorial .slide strong { font-weight: 600; background: #e8d4c0; padding: 0 0.15em; }
+.presentation.theme-vintage-editorial .slide.layout-title h1 { font-size: 4.8em; }
+.presentation.theme-vintage-editorial .slide.layout-title p { color: #555; }
+.presentation.theme-vintage-editorial .slide blockquote,
+.presentation.theme-vintage-editorial .slide.layout-quote p {
+    margin: 0;
+    padding: 0.6em 0.9em;
+    border: 3px solid #1a1a1a;
+    font-style: normal;
+    font-weight: 600;
+    background: #fff;
+}
+.presentation.theme-vintage-editorial .slide pre { background: #ebe7de; }
+
+/* A `>` quote on a quote-layout slide is a p inside a blockquote, so the
+ * themed box above would draw twice and the font sizes would compound.  The
+ * blockquote carries the style; its paragraphs inherit it.  The layout-quote
+ * selectors are load-bearing: the themed `.slide.layout-quote p` rules carry
+ * four classes, and a three-class reset would lose to them. */
+.presentation.theme-swiss-modern .slide blockquote p,
+.presentation.theme-swiss-modern .slide.layout-quote blockquote p,
+.presentation.theme-paper-ink .slide blockquote p,
+.presentation.theme-paper-ink .slide.layout-quote blockquote p,
+.presentation.theme-dark-botanical .slide blockquote p,
+.presentation.theme-dark-botanical .slide.layout-quote blockquote p,
+.presentation.theme-vintage-editorial .slide blockquote p,
+.presentation.theme-vintage-editorial .slide.layout-quote blockquote p {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    font-size: 1em;
+    font-style: inherit;
 }
 
-/* An empty status element must take no space, or it holds the viewport open
- * under the deck and the page scrolls behind the slides. */
-.standalone-status:empty { display: none; }
+/* The reset above zeroes every margin, so a quote with two paragraphs needs
+ * its gap back, at the reset's own specificity on quote-layout slides. */
+.presentation.theme-swiss-modern .slide blockquote p + p,
+.presentation.theme-swiss-modern .slide.layout-quote .slide-block blockquote p + p,
+.presentation.theme-paper-ink .slide blockquote p + p,
+.presentation.theme-paper-ink .slide.layout-quote .slide-block blockquote p + p,
+.presentation.theme-dark-botanical .slide blockquote p + p,
+.presentation.theme-dark-botanical .slide.layout-quote .slide-block blockquote p + p,
+.presentation.theme-vintage-editorial .slide blockquote p + p,
+.presentation.theme-vintage-editorial .slide.layout-quote .slide-block blockquote p + p { margin-top: .5em; }
 
-/* Failure is the one state a viewer can act on, so it is the one state that
- * does not look like progress. */
-.standalone-status[data-state="error"],
-.standalone-status[data-state="unavailable"] { color: #b42318; }
+/* The diagram box stays white in every theme, so its pre-render source and
+ * parse-error fallback need dark text on the dark theme. */
+.presentation.theme-dark-botanical .slide .mermaid { color: #1c1b1a; }

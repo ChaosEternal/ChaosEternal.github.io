@@ -133,8 +133,60 @@
         return deck;
     }
 
+    /* The fixed stage (DR-2), after frontend-slides' viewport-base.css.  A
+     * slide is laid out at 1920x1080 and scaled as a whole, so it looks the
+     * same on a phone and a monitor instead of reflowing per device.  CSS
+     * cannot divide one length by another to get a scale factor, so the
+     * factor is computed here and handed to style.css as --stage-scale. */
+    var STAGE_WIDTH = 1920;
+    var STAGE_HEIGHT = 1080;
+
+    var STAGE_PADDING_X = 128;  /* style.css: .presentation .slide padding */
+    var CONTROL_GUTTER = 64;    /* window px the prev/next buttons cover */
+
+    /* The largest scale at which the stage fits both axes; the other axis
+     * letterboxes.  A window that reports no size has nothing to fit, and
+     * scaling to 0 would make the deck vanish, so it stays at native size.
+     *
+     * The third bound keeps slide text clear of the prev/next controls.  Text
+     * starts at the letterbox plus the scaled side padding, and on a phone that
+     * sum falls under the 48px buttons.  Solving (w - 1920s)/2 + 128s >= 64
+     * for s gives the bound, which only bites below 960px wide.  A deck too
+     * narrow for any gutter (128px and under) drops the bound rather than
+     * scaling to nothing or to a negative, mirrored slide. */
+    function stageScale(width, height) {
+        if (!(width > 0) || !(height > 0)) return 1;
+        var fit = Math.min(width / STAGE_WIDTH, height / STAGE_HEIGHT);
+        var gutter = (width - 2 * CONTROL_GUTTER) / (STAGE_WIDTH - 2 * STAGE_PADDING_X);
+        return gutter > 0 ? Math.min(fit, gutter) : fit;
+    }
+
+    /* Fit `deck` to `win` now and on every resize.  Returns the detach
+     * function: the review app enters and leaves the deck many times per
+     * page, and a listener left behind per entry would pile up.
+     *
+     * The detach carries the fit itself as `.fit`.  A hidden deck measures
+     * 0x0 and falls back to scale 1, so a page that hides the deck through a
+     * resize has to refit it when it shows it again (DR-6). */
+    function attachStageFit(deck, win) {
+        /* Measured on the deck, not the window: under iOS pinch-zoom
+         * innerWidth reports the zoomed visual viewport while the fixed deck
+         * keeps its size, so the slide would rescale on every zoom. */
+        function fit() {
+            deck.style.setProperty("--stage-scale",
+                String(stageScale(deck.clientWidth, deck.clientHeight)));
+        }
+        fit();
+        win.addEventListener("resize", fit);
+        var detach = function () { win.removeEventListener("resize", fit); };
+        detach.fit = fit;
+        return detach;
+    }
+
     var api = {
         PRESENTATION_CONTROLS: PRESENTATION_CONTROLS,
+        attachStageFit: attachStageFit,
+        stageScale: stageScale,
         buildControls: buildControls,
         buildDeck: buildDeck,
     };

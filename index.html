@@ -27,7 +27,644 @@
     <a href="https://twitter.com/chaoseternal">Twitter</a> | <a href="http://github.com/Chaoseternal">Github</a>
   </div>
 </div></div>
-<div id="content"><div class="post-date">26 May 2026</div><h1 class="post-title"><a href="http://chaoseternal.net/building-a-code-execution-harness.html">Building a Code Execution Harness for LLM Agents in Scheme</a></h1>
+<div id="content"><div class="post-date">25 Oct 2026</div><h1 class="post-title"><a href="http://chaoseternal.net/sdlc-playbooks-as-agent-skills.html">SDLC playbooks for an AI agent: thin skills, one playbook</a></h1>
+<p>A delivery team has three main roles: the product owner, the developer and the tester. Each role
+runs four or five standard playbooks every sprint. This post writes those playbooks out in full,
+then packages them as Claude Code skills, so an agent working in one of the roles follows the same
+steps a person would.</p>
+<p>The first version of these skills put each playbook's whole procedure inside its skill. That was
+the wrong shape. A skill should be short and simple. The procedure belongs in a playbook the team
+edits like any other document. Copying the steps into the skill gives every step two copies, and
+the copies drift apart the first time someone edits one of them.</p>
+<p>So each skill here is thin, and does three things:</p>
+<ul>
+<li><strong>It says when it applies.</strong> Claude Code lists every skill's <code>description</code> at session start, and
+that one line decides whether the skill fires.</li>
+<li><strong>It sends the agent to the playbook.</strong> The body orders the agent to read one playbook section
+and follow its steps, and to stop and say so if the read fails.</li>
+<li><strong>It keeps the rules that must hold even if that read fails.</strong></li>
+</ul>
+<p>Those rules protect the decisions a person keeps. An agent can draft a story, propose a
+ranking or recommend a release. Accepting the story, setting the order and calling
+the release go or no-go stay with a person. The rules live in the skill rather than the playbook because the
+skill is the part the agent is sure to see.</p>
+<p>The split costs almost nothing, because Claude Code does not keep a skill's body in context. Only
+the description sits there. The body loads when the description matches the work in hand, so a
+thin skill costs one line of context until it fires, plus one playbook section when it does.</p>
+<p>Part 1 below is the 16 playbooks. Part 2 is the 16 skills and how to install them. The playbooks
+are also published as a single file, <a href="sdlc/sdlc-playbooks.md">sdlc-playbooks.md</a>, ready to copy
+into a repo.</p>
+<h2>Part 1: The playbooks</h2>
+<p>Part 1 gives one entry per playbook. Each entry
+gives the same five fields, so any playbook can be lifted out on its own:</p>
+<ul>
+<li><strong>Trigger:</strong> what starts it.</li>
+<li><strong>Inputs:</strong> what must exist before it starts.</li>
+<li><strong>Steps:</strong> the work, in order.</li>
+<li><strong>Output:</strong> what it leaves behind.</li>
+<li><strong>Done when:</strong> the check that ends it.</li>
+</ul>
+<p>The playbooks follow Scrum terms, because most delivery teams use them. A sprint is a fixed
+timebox of one to four weeks. A story is one unit of user-visible value small enough to finish
+inside a sprint. Acceptance criteria are the testable conditions a story must meet before the
+product owner accepts it.</p>
+<h3>How the three roles divide the work</h3>
+<p>The product owner decides <strong>what</strong> gets built and in which order. The developer decides <strong>how</strong>
+it gets built. The tester checks <strong>whether</strong> what was built does what was asked, and finds what
+nobody asked about.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Product owner</th>
+<th>Developer</th>
+<th>Tester</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Owns</td>
+<td>The backlog and its order</td>
+<td>The code and its design</td>
+<td>The test strategy and suites</td>
+</tr>
+<tr>
+<td>Answers</td>
+<td>&quot;Is this worth building?&quot;</td>
+<td>&quot;How do we build it?&quot;</td>
+<td>&quot;Does it work, and how does it break?&quot;</td>
+</tr>
+<tr>
+<td>Signs off</td>
+<td>Story acceptance</td>
+<td>Code review</td>
+<td>Release exit criteria</td>
+</tr>
+<tr>
+<td>Main artifact</td>
+<td>Ranked backlog</td>
+<td>Merged, tested change</td>
+<td>Test cases and defect reports</td>
+</tr>
+</tbody>
+</table>
+<h3>Product owner</h3>
+<h4>PO-1 Backlog refinement</h4>
+<ul>
+<li><strong>Trigger:</strong> a recurring session, usually once or twice a sprint. Also any new request from a
+stakeholder.</li>
+<li><strong>Inputs:</strong> raw requests, user feedback, defect reports, the product roadmap.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Turn each request into a story in the form &quot;As a <code>&lt;user&gt;</code>, I want <code>&lt;capability&gt;</code> so that
+<code>&lt;benefit&gt;</code>.&quot;</li>
+<li>Write acceptance criteria for it. Given/When/Then form makes them directly testable.</li>
+<li>Split any story too large to finish in one sprint.</li>
+<li>Bring the top stories to the team for questions and a size estimate.</li>
+<li>Mark a story ready once it meets the team's definition of ready.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> the top of the backlog holds about two sprints of ready stories.</li>
+<li><strong>Done when:</strong> every story planned for the next sprint has criteria, an estimate and no open
+questions.</li>
+</ul>
+<p>A common definition of ready uses the INVEST checklist: each story is Independent, Negotiable,
+Valuable, Estimable, Small and Testable.</p>
+<h4>PO-2 Prioritisation</h4>
+<ul>
+<li><strong>Trigger:</strong> before each sprint planning, and whenever a large new item arrives.</li>
+<li><strong>Inputs:</strong> the refined backlog, business goals, the cost of delay of each item, and known
+dependencies and risks.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Score each candidate on value, urgency and risk reduction.</li>
+<li>Weigh that score against the item's size.</li>
+<li>Move dependencies ahead of the work that needs them.</li>
+<li>Bring high-risk items forward, so they fail early if they fail at all.</li>
+<li>Publish the ranked order and the reason for the top items.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> one strictly ordered backlog. No two items share a rank.</li>
+<li><strong>Done when:</strong> the team can pull work from the top without asking which comes first.</li>
+</ul>
+<p>Two common scoring methods are MoSCoW and WSJF. MoSCoW sorts items into Must, Should, Could and
+Won't. WSJF, weighted shortest job first, divides cost of delay by job size.</p>
+<h4>PO-3 Sprint review and acceptance</h4>
+<ul>
+<li><strong>Trigger:</strong> a developer marks a story done, and at the sprint review at the end of each
+sprint.</li>
+<li><strong>Inputs:</strong> the delivered story, its acceptance criteria and the tester's results.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Check each acceptance criterion against the working software, not against a description of
+it. Record how each one was checked.</li>
+<li>Accept the story, or reject it with the criterion it fails.</li>
+<li>At the sprint review, demonstrate the accepted stories to stakeholders.</li>
+<li>Turn stakeholder feedback into new backlog items.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> each story is accepted or returned. Feedback lands in the backlog.</li>
+<li><strong>Done when:</strong> no story from the sprint sits unreviewed.</li>
+</ul>
+<h4>PO-4 Release planning and stakeholder updates</h4>
+<ul>
+<li><strong>Trigger:</strong> each release cycle, and a fixed reporting rhythm such as fortnightly.</li>
+<li><strong>Inputs:</strong> the team's velocity, which is the story points it finishes per sprint. Also the
+ranked backlog and any external deadlines.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Forecast how far down the backlog the team will reach by each date, using average velocity.
+Give a range, not a single point.</li>
+<li>Agree the release scope and date with stakeholders.</li>
+<li>Report progress against that forecast each period.</li>
+<li>Raise a scope or date trade-off as soon as the forecast slips.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> a release plan and a regular progress report.</li>
+<li><strong>Done when:</strong> stakeholders know what ships next and when.</li>
+</ul>
+<h3>Developer</h3>
+<h4>DEV-1 Story to design</h4>
+<ul>
+<li><strong>Trigger:</strong> a ready story enters sprint planning.</li>
+<li><strong>Inputs:</strong> the story and its acceptance criteria, plus the current architecture.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Ask the product owner any question the criteria leave open.</li>
+<li>Break the story into technical tasks of a day or less.</li>
+<li>Choose an approach. Record any decision that is costly to reverse, for example as an
+architecture decision record.</li>
+<li>Estimate the story with the team.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> a task list, an estimate, and a design note where one was needed.</li>
+<li><strong>Done when:</strong> any developer on the team could start the first task.</li>
+</ul>
+<h4>DEV-2 Code and review</h4>
+<ul>
+<li><strong>Trigger:</strong> a developer picks up a task.</li>
+<li><strong>Inputs:</strong> the task, the design note, and the tester's test cases from TEST-1.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Write a failing test for the behaviour, then the code that makes it pass.</li>
+<li>Keep each change small enough to review in one sitting.</li>
+<li>Open a pull request that says what changed, why, and how it was tested.</li>
+<li>Get at least one peer review. Address every comment, either with a fix or with a reason.</li>
+<li>Merge only after the review approves the latest commit.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> a reviewed change with tests.</li>
+<li><strong>Done when:</strong> the change is merged and the build is green.</li>
+</ul>
+<h4>DEV-3 Build and merge through CI</h4>
+<ul>
+<li><strong>Trigger:</strong> every push to a shared branch.</li>
+<li><strong>Inputs:</strong> the change and the CI pipeline. CI, continuous integration, means every change is
+built and tested automatically on merge.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>CI compiles the code and runs unit tests, static analysis and the security scan.</li>
+<li>CI runs the integration and regression suites.</li>
+<li>A failing pipeline blocks the merge.</li>
+<li>A broken main branch is fixed or reverted before any other work continues.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> a deployable build of the main branch.</li>
+<li><strong>Done when:</strong> the pipeline passes and the build is available to test environments.</li>
+</ul>
+<h4>DEV-4 Defect fix</h4>
+<ul>
+<li><strong>Trigger:</strong> a defect report assigned through triage (TEST-4).</li>
+<li><strong>Inputs:</strong> the report with its steps to reproduce, severity and priority.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Reproduce the defect. If it does not reproduce, return it with what was tried.</li>
+<li>Write a test that fails because of the defect.</li>
+<li>Trace the fault back to its root cause, not just to where it shows.</li>
+<li>Fix the cause and watch the new test pass.</li>
+<li>Check whether the same cause affects other code, and fix or report each case.</li>
+<li>If three fixes in a row fail, stop patching. The design is probably wrong, so raise it.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> a fix plus a regression test that guards it.</li>
+<li><strong>Done when:</strong> the tester confirms the fix and the regression suite passes.</li>
+</ul>
+<h4>DEV-5 Incident response and hotfix</h4>
+<ul>
+<li><strong>Trigger:</strong> a production incident, meaning a live failure that affects users.</li>
+<li><strong>Inputs:</strong> alerts, logs, and the on-call runbook.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Acknowledge the incident and name one incident lead.</li>
+<li>Restore service first. Rolling back or switching off a feature usually beats fixing forward.</li>
+<li>Ship a hotfix through a shortened but still reviewed pipeline if a rollback is not enough.</li>
+<li>Post status updates on a fixed rhythm until the incident closes.</li>
+<li>Hold a blameless post-incident review and put its actions in the backlog.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> restored service, an incident record and follow-up items.</li>
+<li><strong>Done when:</strong> service is normal and every follow-up has an owner.</li>
+</ul>
+<h3>Tester</h3>
+<h4>TEST-1 Test design</h4>
+<ul>
+<li><strong>Trigger:</strong> a story is refined, before any of its code exists.</li>
+<li><strong>Inputs:</strong> the story and its acceptance criteria.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Derive one or more test cases from each acceptance criterion.</li>
+<li>Add the cases the criteria miss: boundaries, invalid input, empty states, permissions and
+error paths.</li>
+<li>Decide what to automate and at which level. Most checks belong in fast unit and API tests.
+Only a few belong in slow end-to-end UI tests.</li>
+<li>Share the cases with the developer before coding starts.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> test cases linked to the story.</li>
+<li><strong>Done when:</strong> every acceptance criterion has at least one test case.</li>
+</ul>
+<h4>TEST-2 Exploratory testing</h4>
+<ul>
+<li><strong>Trigger:</strong> a story is built and deployed to a test environment.</li>
+<li><strong>Inputs:</strong> the build, the story, and a time-boxed charter. A charter is a one-line mission,
+for example &quot;explore checkout with expired cards to find payment-state bugs&quot;.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Write the charter first if none was given. Run a session of 60 to 90 minutes against it.</li>
+<li>Vary inputs, order, timing and user roles beyond what the scripted cases cover.</li>
+<li>Take notes as you go: what was tried, what was seen, and any question it raised.</li>
+<li>Report each defect found, using TEST-4.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> session notes and defect reports.</li>
+<li><strong>Done when:</strong> the charter is covered or its time box ends.</li>
+</ul>
+<h4>TEST-3 Regression</h4>
+<ul>
+<li><strong>Trigger:</strong> every build, through CI.</li>
+<li><strong>Inputs:</strong> the automated regression suite.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Run the suite on each build.</li>
+<li>Investigate each failure. Sort it as a real defect, a test needing an update, or a flaky
+test.</li>
+<li>Fix or quarantine flaky tests quickly, because a suite nobody trusts gets ignored.</li>
+<li>Add a test for each fixed defect and each new feature.</li>
+<li>Prune tests that no longer check anything.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> a suite that passes on a healthy build and fails on a broken one.</li>
+<li><strong>Done when:</strong> the suite is green, or every red result has a defect or a fix in flight.</li>
+</ul>
+<h4>TEST-4 Defect reporting and triage</h4>
+<ul>
+<li><strong>Trigger:</strong> any test, session or user report finds unexpected behaviour.</li>
+<li><strong>Inputs:</strong> the observed behaviour and the build it was seen on.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Write the report:
+<ul>
+<li>A title that names the symptom.</li>
+<li>The environment and build.</li>
+<li>Exact steps to reproduce.</li>
+<li>Expected and actual results.</li>
+<li>Evidence such as logs or screenshots.</li>
+</ul>
+</li>
+<li>Set severity, meaning how badly it hurts the user.</li>
+<li>At triage, the product owner sets priority, meaning how soon it gets fixed.</li>
+<li>Triage assigns the defect to a developer, defers it, or closes it with a reason.</li>
+<li>Retest after the fix and close or reopen the report.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> a tracked defect with a decision attached.</li>
+<li><strong>Done when:</strong> the defect is verified fixed, or closed with a stated reason.</li>
+</ul>
+<p>Severity and priority are separate on purpose. A typo on the home page is low severity but can be
+high priority. A crash in a rarely used admin screen can be high severity and low priority.</p>
+<h4>TEST-5 Release sign-off</h4>
+<ul>
+<li><strong>Trigger:</strong> a release candidate is ready.</li>
+<li><strong>Inputs:</strong> the candidate build, the exit criteria, and the open defect list.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>Run the full regression suite and any release-only checks, such as performance, security
+and upgrade paths.</li>
+<li>Check the candidate against each exit criterion. A typical set is: no open critical or high
+defects, all release stories accepted, and regression green.</li>
+<li>List any known issues that ship, each with a workaround.</li>
+<li>Give a go or no-go recommendation with the evidence behind it.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> a signed release report.</li>
+<li><strong>Done when:</strong> the release decision is made and recorded.</li>
+</ul>
+<h3>Playbooks all three roles share</h3>
+<h4>SHARED-1 Three amigos</h4>
+<ul>
+<li><strong>Trigger:</strong> a story is about to become ready, during refinement.</li>
+<li><strong>Inputs:</strong> the draft story and its criteria.</li>
+<li><strong>Who:</strong> the product owner, one developer and one tester. That trio is the &quot;three amigos&quot;.</li>
+<li><strong>Steps:</strong>
+<ol>
+<li>The product owner explains the need and the value behind it.</li>
+<li>The developer asks how it could be built and what it touches.</li>
+<li>The tester asks how it could fail and how anyone would know.</li>
+<li>Together they turn the answers into concrete examples and agree the final criteria.</li>
+</ol>
+</li>
+<li><strong>Output:</strong> agreed acceptance criteria and example cases.</li>
+<li><strong>Done when:</strong> all three would judge a finished story the same way.</li>
+</ul>
+<h4>SHARED-2 Definition of done</h4>
+<p>The definition of done is a checklist the whole team owns. A story counts as finished only when
+every item on it holds. A typical list:</p>
+<ul>
+<li>Code is reviewed and merged.</li>
+<li>Unit and integration tests are written and passing.</li>
+<li>Acceptance criteria are verified by the tester.</li>
+<li>Regression is green.</li>
+<li>Documentation and release notes are updated.</li>
+<li>The product owner has accepted the story.</li>
+</ul>
+<p>The team revises the list at retrospectives. It should only grow stricter as the team matures.</p>
+<h3>One story through all the playbooks</h3>
+<ol>
+<li>The product owner writes the story and its criteria (PO-1) and ranks it (PO-2).</li>
+<li>The three amigos agree the final criteria (SHARED-1).</li>
+<li>The tester derives test cases (TEST-1) while the developer designs (DEV-1).</li>
+<li>The developer writes and reviews the code (DEV-2), and CI builds and tests it (DEV-3, TEST-3).</li>
+<li>The tester explores the built feature (TEST-2) and reports defects (TEST-4).</li>
+<li>The developer fixes them (DEV-4).</li>
+<li>The story meets the definition of done (SHARED-2) and the product owner accepts it (PO-3).</li>
+<li>At release, the tester signs off (TEST-5) and the product owner reports it shipped (PO-4).</li>
+</ol>
+<h2>Part 2: The playbooks as Claude Code skills</h2>
+<p>Part 2 turns the 16 playbooks of Part 1 into 16 thin Claude Code skills.
+Each block below is one complete <code>SKILL.md</code> file, headed by the path it belongs at.</p>
+<p>A thin skill holds no procedure. It names its trigger, orders the agent to read its playbook
+section, and keeps the rules that must hold even if that read fails. The playbook is the only copy
+of the steps, so your team can edit a playbook without touching its skill.</p>
+<p>To install them in another Claude Code agent:</p>
+<ol>
+<li>Download <a href="sdlc/sdlc-playbooks.md">sdlc-playbooks.md</a> into that agent's repo as <code>docs/sdlc-playbooks.md</code>. Every skill
+reads its steps from there, by the section ID in its heading, such as <code>PO-1</code>.</li>
+<li>Create each file below at its path, relative to the repo root. A skill under <code>.claude/skills/</code>
+is project-scoped. Put it under <code>~/.claude/skills/</code> instead to make it user-wide.</li>
+<li>Start a new session. Claude Code lists each skill's <code>description</code> at session start and loads
+the body only when that description matches the work in hand.</li>
+</ol>
+<p>Three things to adjust for your setup:</p>
+<ul>
+<li><strong>The path.</strong> If the playbooks live somewhere other than <code>docs/sdlc-playbooks.md</code>, change it in
+all 16 files. A wrong path makes every skill stop at its first line.</li>
+<li><strong>The descriptions.</strong> The <code>description</code> decides whether a skill fires, so each one names its
+trigger in the words a request is likely to use. Change those words to match your team's
+vocabulary. A skill whose trigger never matches the way people talk never fires.</li>
+<li><strong>The section IDs.</strong> Each skill finds its steps by an ID such as <code>TEST-4</code>. Keep the IDs in the
+playbook headings when you edit them, or the skill reads the wrong section.</li>
+</ul>
+<p>The skills are written for an agent acting in a role, not for a person. An agent cannot accept a
+story, set a priority, or sign off a release on a human's behalf. Those rules sit in the skill
+itself rather than in the playbook, so they hold even when the agent never reads the playbook.
+The three tester skills that make no such decision carry no rules.</p>
+<h3>Product owner</h3>
+<h4><code>.claude/skills/po-backlog-refinement/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: po-backlog-refinement
+description: Use when a new request, idea, defect or piece of feedback needs to become a backlog story, or when stories need acceptance criteria, splitting or a readiness check before sprint planning.
+---
+
+# Backlog refinement (PO-1)
+
+Read section PO-1 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- Ask the requester or the product owner each open question. Never guess an answer into a story.
+- The product owner decides when a story is ready. Propose it as ready; do not mark it.
+</code></pre>
+<h4><code>.claude/skills/po-prioritisation/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: po-prioritisation
+description: Use when the backlog needs ranking or re-ranking, before sprint planning, when a large new item arrives, or when someone asks what should be worked on first.
+---
+
+# Prioritisation (PO-2)
+
+Read section PO-2 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- The product owner owns the order. Propose a ranking with the reason for each top item, and do not apply it unasked.
+</code></pre>
+<h4><code>.claude/skills/po-story-acceptance/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: po-story-acceptance
+description: Use when a story is marked done and needs checking against its acceptance criteria, or when preparing a sprint review of what the sprint delivered.
+---
+
+# Sprint review and acceptance (PO-3)
+
+Read section PO-3 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- The product owner accepts or rejects the story. Send a recommendation with the evidence for each criterion, and do not accept on their behalf.
+</code></pre>
+<h4><code>.claude/skills/po-release-planning/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: po-release-planning
+description: Use when forecasting what will ship by a date, agreeing release scope, writing a progress report for stakeholders, or when a release forecast slips.
+---
+
+# Release planning and stakeholder updates (PO-4)
+
+Read section PO-4 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- The product owner agrees scope and date with stakeholders. Draft the plan; do not commit to a date yourself.
+- Raise a slipping forecast as soon as you see it, not at the next report.
+</code></pre>
+<h3>Developer</h3>
+<h4><code>.claude/skills/dev-story-to-design/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: dev-story-to-design
+description: Use when a ready story is picked up for a sprint and needs breaking into tasks, a technical approach, or an estimate before any code is written.
+---
+
+# Story to design (DEV-1)
+
+Read section DEV-1 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- Ask the product owner about any criterion that is open. Do not design around a guess.
+</code></pre>
+<h4><code>.claude/skills/dev-code-and-review/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: dev-code-and-review
+description: Use when implementing a task or story in code, opening a pull request, or responding to review comments.
+---
+
+# Code and review (DEV-2)
+
+Read section DEV-2 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- Merge only when the approval is newer than the latest commit. An older approval means you are merging unreviewed code.
+</code></pre>
+<h4><code>.claude/skills/dev-ci-build-merge/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: dev-ci-build-merge
+description: Use when pushing to a shared branch, when a CI pipeline fails, or when the main branch is broken.
+---
+
+# Build and merge through CI (DEV-3)
+
+Read section DEV-3 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- Never bypass a failing pipeline. A red pipeline is a blocked merge.
+</code></pre>
+<h4><code>.claude/skills/dev-defect-fix/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: dev-defect-fix
+description: Use when fixing a reported bug or defect, or when a test or user report shows the code doing the wrong thing.
+---
+
+# Defect fix (DEV-4)
+
+Read section DEV-4 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- The tester confirms the fix. Do not close the defect yourself.
+</code></pre>
+<h4><code>.claude/skills/dev-incident-hotfix/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: dev-incident-hotfix
+description: Use when production is failing for users, an alert fires, an outage is reported, or a hotfix is needed.
+---
+
+# Incident response and hotfix (DEV-5)
+
+Read section DEV-5 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- The incident lead is a person. Get their go-ahead before any rollback, feature switch or hotfix deploy in production.
+</code></pre>
+<h3>Tester</h3>
+<h4><code>.claude/skills/test-design/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: test-design
+description: Use when a story has acceptance criteria but no test cases yet, ideally before its code exists, or when asked what to test for a feature.
+---
+
+# Test design (TEST-1)
+
+Read section TEST-1 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+</code></pre>
+<h4><code>.claude/skills/test-exploratory/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: test-exploratory
+description: Use when a built feature is in a test environment and needs hands-on testing beyond the scripted cases, or when asked to explore or try to break something.
+---
+
+# Exploratory testing (TEST-2)
+
+Read section TEST-2 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+</code></pre>
+<h4><code>.claude/skills/test-regression/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: test-regression
+description: Use when the regression suite fails, a test is flaky, or a fixed defect or new feature needs a test added to the automated suite.
+---
+
+# Regression (TEST-3)
+
+Read section TEST-3 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+</code></pre>
+<h4><code>.claude/skills/test-defect-report/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: test-defect-report
+description: Use when unexpected behaviour is found and needs a bug report, or when defects need triage, severity, retest or closing.
+---
+
+# Defect reporting and triage (TEST-4)
+
+Read section TEST-4 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- Set severity only. The product owner sets priority at triage.
+</code></pre>
+<h4><code>.claude/skills/test-release-signoff/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: test-release-signoff
+description: Use when a release candidate is ready and needs a go or no-go recommendation against the exit criteria.
+---
+
+# Release sign-off (TEST-5)
+
+Read section TEST-5 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- The release owner decides go or no-go. Give a recommendation with the evidence for each exit criterion, and do not sign off yourself.
+</code></pre>
+<h3>Shared by all three roles</h3>
+<h4><code>.claude/skills/three-amigos/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: three-amigos
+description: Use when a story is about to be marked ready and its acceptance criteria need agreeing from the product, development and testing views at once.
+---
+
+# Three amigos (SHARED-1)
+
+Read section SHARED-1 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- When the people in those roles are available, put the questions to them rather than answering for them.
+</code></pre>
+<h4><code>.claude/skills/definition-of-done/SKILL.md</code></h4>
+<pre><code class="language-markdown">---
+name: definition-of-done
+description: Use before calling any story, task or change finished, done or complete.
+---
+
+# Definition of done (SHARED-2)
+
+Read section SHARED-2 of `docs/sdlc-playbooks.md` now and follow its steps in order. If you cannot
+read that section, stop and say so. Do not work from memory.
+
+These rules hold whether or not the read succeeded:
+
+- Check every item and quote its evidence, such as the command you ran and what it printed.
+- If any item fails, the story is not done. Say which item failed.
+</code></pre>
+
+<div class="post-date">26 May 2026</div><h1 class="post-title"><a href="http://chaoseternal.net/building-a-code-execution-harness.html">Building a Code Execution Harness for LLM Agents in Scheme</a></h1>
 
 <p>
 <i>How harness-checker gives AI agents the power to write and run code -- safely, with feedback, under control</i>

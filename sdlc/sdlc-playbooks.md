@@ -1,7 +1,7 @@
 # SDLC roles and playbooks: product owner, developer, tester
 
-This page gives one entry per playbook. Each entry
-gives the same five fields, so any playbook can be lifted out on its own:
+This page gives one entry per playbook. Most entries
+give the same five fields, so any playbook can be lifted out on its own:
 
 - **Trigger:** what starts it.
 - **Inputs:** what must exist before it starts.

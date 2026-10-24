@@ -22,7 +22,7 @@ So each skill here is thin, and does three things:
   and follow its steps, and to stop and say so if the read fails.
 - *It keeps the rules that must hold even if that read fails.*
 
-Those rules protect the decisions a person keeps. An agent can draft a story, propose a
+Most of those rules protect the decisions a person keeps. An agent can draft a story, propose a
 ranking or recommend a release. Accepting the story, setting the order and calling
 the release go or no-go stay with a person. The rules live in the skill rather than the playbook because the
 skill is the part the agent is sure to see.
@@ -32,13 +32,13 @@ the description sits there. The body loads when the description matches the work
 thin skill costs one line of context until it fires, plus one playbook section when it does.
 
 Part 1 below is the 16 playbooks. Part 2 is the 16 skills and how to install them. The playbooks
-are also published as a single file, [[sdlc/sdlc-playbooks.md][sdlc-playbooks.md]], ready to copy
+are also published as a single file, [[./sdlc/sdlc-playbooks.md][sdlc-playbooks.md]], ready to copy
 into a repo.
 
 * Part 1: The playbooks
 
-Part 1 gives one entry per playbook. Each entry
-gives the same five fields, so any playbook can be lifted out on its own:
+Part 1 gives one entry per playbook. Most entries
+give the same five fields, so any playbook can be lifted out on its own:
 
 - *Trigger:* what starts it.
 - *Inputs:* what must exist before it starts.
@@ -328,7 +328,7 @@ of the steps, so your team can edit a playbook without touching its skill.
 
 To install them in another Claude Code agent:
 
-1. Download [[sdlc/sdlc-playbooks.md][sdlc-playbooks.md]] into that agent's repo as ~docs/sdlc-playbooks.md~. Every skill
+1. Download [[./sdlc/sdlc-playbooks.md][sdlc-playbooks.md]] into that agent's repo as ~docs/sdlc-playbooks.md~. Every skill
    reads its steps from there, by the section ID in its heading, such as ~PO-1~.
 2. Create each file below at its path, relative to the repo root. A skill under ~.claude/skills/~
    is project-scoped. Put it under ~~/.claude/skills/~ instead to make it user-wide.

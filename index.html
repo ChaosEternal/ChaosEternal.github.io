@@ -54,9 +54,14 @@ thin skill costs one line of context until it fires, plus one playbook section w
 <p>Part 1 below is the 16 playbooks. Part 2 is the 16 skills and how to install them. The playbooks
 are also published as a single file, <a href="sdlc/sdlc-playbooks.md">sdlc-playbooks.md</a>, ready to copy
 into a repo.</p>
-<p>This post was revised on 2026-10-25, after a comparison with
-<a href="https://github.com/swcstudiospace/swarm">swarm</a>, a multi-agent SDLC framework. Five of its ideas
-came across:</p>
+<p>This post grew out of an email exchange with my own Claude Code agent between 24 and 26 October
+2026. I set the purpose. I am building a similar agent at work, and I wanted it to run the
+playbooks of a product owner, a developer and a tester. The agent listed those playbooks, wrote
+them up in detail and then turned them into skills. I argued that a skill should be short,
+and that argument produced the thin form described above. To find the gaps, I then gave the agent
+the <a href="https://github.com/swcstudiospace/swarm">swarm</a> repository, a multi-agent SDLC framework, and
+asked what it would improve. The Sources section below was the last addition.</p>
+<p>The swarm comparison revised the post on 2026-10-25. Five of its ideas came across:</p>
 <ul>
 <li>Every playbook ends by writing a handover record, including whether its result was verified.</li>
 <li>Every run ends in a named state: done, blocked or failed.</li>

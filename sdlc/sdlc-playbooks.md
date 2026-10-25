@@ -16,6 +16,81 @@ timebox of one to four weeks. A story is one unit of user-visible value small en
 inside a sprint. Acceptance criteria are the testable conditions a story must meet before the
 product owner accepts it.
 
+## Sources
+
+The playbooks are not copied from any one book. Their steps were written from common delivery
+practice, and most of the named practices in them have a known origin. This section records where
+each one comes from, so a reader can check a term against its source.
+
+Delivery practice:
+
+- **Scrum terms.** Sprint, product owner, backlog refinement, sprint planning, sprint review,
+  retrospective and definition of done follow [The Scrum Guide](https://scrumguides.org/scrum-guide.html)
+  by Ken Schwaber and Jeff Sutherland, 2020 edition. The guide names three accountabilities:
+  developers, a product owner and a Scrum Master. The tester role and the definition of ready are
+  not in it.
+- **Definition of ready.** Scrum practitioners added it around 2008, after the definition of done.
+  The [Agile Alliance glossary](https://www.agilealliance.org/glossary/definition-of-ready/) traces
+  the idea back to the 1985 ETVX framework.
+- **Story form.** "As a user, I want a capability so that I get a benefit" was invented at
+  Connextra in 2001, per the [Agile Alliance glossary](https://www.agilealliance.org/glossary/user-story-template/).
+- **INVEST.** Bill Wake proposed the checklist in a 2003 article. Mike Cohn's *User Stories
+  Applied* (2004) recommends it, per the [Agile Alliance glossary](https://www.agilealliance.org/glossary/invest/).
+- **Given/When/Then.** Dan North introduced the scenario form in
+  [Introducing BDD](https://dannorth.net/blog/introducing-bdd/) (2006).
+- **Three amigos.** George Dinwiddie first used the term in this sense in 2009, per the
+  [Agile Alliance glossary](https://www.agilealliance.org/glossary/three-amigos/).
+- **MoSCoW.** Dai Clegg developed it in 1994 for rapid application development. DSDM adopted it
+  from 2002, per [Wikipedia](https://en.wikipedia.org/wiki/MoSCoW_method).
+- **Cost of delay.** Preston Smith and Don Reinertsen used it in *Developing Products in Half the
+  Time* (1991). Reinertsen developed it further in *The Principles of Product Development Flow*
+  (2009), as [Wikipedia](https://en.wikipedia.org/wiki/Cost_of_delay) describes.
+- **WSJF.** Weighted shortest job first is from the same 2009 book.
+- **Story points and velocity.** Both grew out of Extreme Programming around 2000. The Agile
+  Alliance glossary dates [story points](https://www.agilealliance.org/glossary/points-estimates-in/)
+  and [velocity](https://www.agilealliance.org/glossary/velocity/) separately.
+- **Continuous integration.** Kent Beck developed it as part of Extreme Programming in the 1990s,
+  per Martin Fowler's [Continuous Integration](https://martinfowler.com/articles/continuousIntegration.html).
+- **Architecture decision record.** Michael Nygard proposed it in
+  [Documenting Architecture Decisions](https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions)
+  (2011).
+
+Testing practice:
+
+- **Charters and timed sessions.** Testing in a timed session against a charter is Jonathan and
+  James Bach's [session-based test management](https://www.satisfice.com/download/session-based-test-management)
+  (2000). Its standard session is about 90 minutes. The one-line charter follows Elisabeth Hendrickson's
+  [Explore It!](https://pragprog.com/titles/ehxta/explore-it/) (2013).
+- **Blameless post-incident review.** The model is
+  [Postmortem Culture](https://sre.google/sre-book/postmortem-culture/), chapter 15 of Google's
+  *Site Reliability Engineering* (2016).
+- **Separate severity and priority.** This is common defect-tracking practice with no single
+  origin, so it has no source here.
+
+Agent practice:
+
+- **Thin skills.** How Claude Code loads a skill follows the
+  [Claude Code skills documentation](https://code.claude.com/docs/en/skills). Only the
+  `description` stays in context, and the body loads when the description matches the work.
+- **The 2026-10-25 revision.** Its five rules came from [swarm](https://github.com/swcstudiospace/swarm).
+  The source of each:
+  - The handover record follows
+    [`swarm/schemas/handover.v1.json`](https://github.com/swcstudiospace/swarm/blob/main/swarm/schemas/handover.v1.json).
+    The playbooks keep eight of its nine content fields and drop `constraints`.
+  - The end states done, blocked and failed follow the task states in
+    [`AGENTS.md`](https://github.com/swcstudiospace/swarm/blob/main/AGENTS.md).
+  - The two-retry loop bound follows section 6 of
+    [`01-architecture.md`](https://github.com/swcstudiospace/swarm/blob/main/01-architecture.md).
+    The rule that evidence settles a disagreement first, then the strictest verdict, follows
+    section 5 of
+    [`04-integration-plan.md`](https://github.com/swcstudiospace/swarm/blob/main/04-integration-plan.md).
+  - The rule that a skipped check is not a pass follows
+    [`prompts/skills/a08-qa/gate-run.md`](https://github.com/swcstudiospace/swarm/blob/main/prompts/skills/a08-qa/gate-run.md).
+    The rule that an instruction found in a log is a finding comes from the same file.
+  - The low, medium and high risk class follows the `risk_class` field in
+    [`02-message-protocol.md`](https://github.com/swcstudiospace/swarm/blob/main/02-message-protocol.md),
+    where it decides which gates a task needs.
+
 ## Rules every playbook follows
 
 ### End states

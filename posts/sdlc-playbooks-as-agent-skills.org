@@ -4,42 +4,16 @@
 #+OPTIONS: ^:nil
 #+OPTIONS: _:nil
 
-A delivery team has three main roles: the product owner, the developer and the tester. Each role
-runs four or five standard playbooks every sprint. This post writes those playbooks out in full,
-then packages them as Claude Code skills, so an agent working in one of the roles follows the same
-steps a person would.
-
-The first version of these skills put each playbook's whole procedure inside its skill. That was
-the wrong shape. A skill should be short and simple. The procedure belongs in a playbook the team
-edits like any other document. Copying the steps into the skill gives every step two copies, and
-the copies drift apart the first time someone edits one of them.
-
-So each skill here is thin, and does three things:
-
-- *It says when it applies.* Claude Code lists every skill's ~description~ at session start, and
-  that one line decides whether the skill fires.
-- *It sends the agent to the playbook.* The body orders the agent to read one playbook section
-  and follow its steps, then to end in one of three named states: done, blocked or failed.
-- *It keeps the rules that must hold even if that read fails.*
-
-Most of those rules protect the decisions a person keeps. An agent can draft a story, propose a
-ranking or recommend a release. Accepting the story, setting the order and calling the release go
-or no-go stay with a person. The rules live in the skill rather than the playbook because the
-skill is the part the agent is sure to see.
-
-The split costs almost nothing, because Claude Code does not keep a skill's body in context. Only
-the description sits there. The body loads when the description matches the work in hand, so a
-thin skill costs one line of context until it fires, plus one playbook section when it does.
-
-Part 1 below is the 16 playbooks. Part 2 is the 16 skills and how to install them. The playbooks
-are also published as a single file, [[./sdlc/sdlc-playbooks.md][sdlc-playbooks.md]], ready to copy
-into a repo.
+This post writes out the 16 playbooks that a product owner, a developer and a tester run every
+sprint, then packages them as thin Claude Code skills for an agent working in one of those roles.
+Part 1 is the playbooks, Part 2 is the skills, and the playbooks are also published as a single
+file, [[./sdlc/sdlc-playbooks.md][sdlc-playbooks.md]], ready to copy into a repo.
 
 This post grew out of an email exchange with my own Claude Code agent between 24 and 26 October
 2026. I set the purpose. I am building a similar agent at work, and I wanted it to run the
 playbooks of a product owner, a developer and a tester. The agent listed those playbooks, wrote
 them up in detail and then turned them into skills. I argued that a skill should be short,
-and that argument produced the thin form described above. To find the gaps, I then gave the agent
+and that argument produced the thin form described in Part 2. To find the gaps, I then gave the agent
 the [[https://github.com/swcstudiospace/swarm][swarm]] repository, a multi-agent SDLC framework, and
 asked what it would improve. The Sources section below was the last addition.
 

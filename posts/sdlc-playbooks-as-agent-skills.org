@@ -35,9 +35,15 @@ Part 1 below is the 16 playbooks. Part 2 is the 16 skills and how to install the
 are also published as a single file, [[./sdlc/sdlc-playbooks.md][sdlc-playbooks.md]], ready to copy
 into a repo.
 
-This post was revised on 2026-10-25, after a comparison with
-[[https://github.com/swcstudiospace/swarm][swarm]], a multi-agent SDLC framework. Five of its ideas
-came across:
+This post grew out of an email exchange with my own Claude Code agent between 24 and 26 October
+2026. I set the purpose. I am building a similar agent at work, and I wanted it to run the
+playbooks of a product owner, a developer and a tester. The agent listed those playbooks, wrote
+them up in detail and then turned them into skills. I argued that a skill should be short,
+and that argument produced the thin form described above. To find the gaps, I then gave the agent
+the [[https://github.com/swcstudiospace/swarm][swarm]] repository, a multi-agent SDLC framework, and
+asked what it would improve. The Sources section below was the last addition.
+
+The post was revised on 25 October after that comparison. Five of swarm's ideas came across:
 
 - Every playbook ends by writing a handover record, including whether its result was verified.
 - Every run ends in a named state: done, blocked or failed.

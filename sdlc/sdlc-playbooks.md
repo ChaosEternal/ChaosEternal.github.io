@@ -1,18 +1,66 @@
 # SDLC roles and playbooks: product owner, developer, tester
 
 This page gives one entry per playbook. Most entries
-give the same five fields, so any playbook can be lifted out on its own:
+give the same six fields, so any playbook can be lifted out on its own:
 
 - **Trigger:** what starts it.
 - **Inputs:** what must exist before it starts.
 - **Steps:** the work, in order.
 - **Output:** what it leaves behind.
 - **Done when:** the check that ends it.
+- **Handover:** who receives the playbook's handover record, defined below, and which of its parts
+  that reader needs most.
 
 The playbooks follow Scrum terms, because most delivery teams use them. A sprint is a fixed
 timebox of one to four weeks. A story is one unit of user-visible value small enough to finish
 inside a sprint. Acceptance criteria are the testable conditions a story must meet before the
 product owner accepts it.
+
+## Rules every playbook follows
+
+### End states
+
+Every playbook ends in exactly one of three states, and whoever ran it names the state:
+
+- **Done:** the done-when check holds.
+- **Blocked:** the work needs something its runner cannot get, such as an answer, an access or a
+  decision. The record names what is needed and who can give it.
+- **Failed:** the work cannot succeed as asked. The record says why, with the evidence.
+
+"Stopped" is not a fourth state. Work that stops without a named state leaves the next reader
+guessing whether it finished.
+
+### The handover record
+
+Each playbook ends by writing a handover record for the next role. It has eight parts:
+
+- **Goal:** what the work set out to do.
+- **Completed:** what was finished.
+- **Remaining:** what was not.
+- **Decisions:** each choice made, with its reason.
+- **Artifacts:** links to what was produced, such as the story, the pull request or the report.
+- **Open questions:** anything the next reader must answer.
+- **Blockers:** anything stopping progress, with its owner.
+- **Verification:** verified, partial or unverified, with the checks behind it.
+
+A record can be short, but all eight parts appear, even as "none". An empty part tells the reader
+it was checked. A missing part tells them nothing. The verification status matters most, because
+it stops "I wrote it" from reading as "I checked it".
+
+### Bounded loops and disagreements
+
+Four playbooks contain a loop that can repeat without end: review in DEV-2, acceptance in PO-3,
+fixing in DEV-4 and reopening in TEST-4. Each allows the first attempt plus two automatic retries.
+If the third attempt also fails, the loop stops and goes up to a person, with the evidence from
+every round and the options as the escalating role sees them. A loop that fails three times
+usually has a cause outside the loop, such as an unclear criterion or a wrong design.
+
+When two roles disagree about whether work passes, two rules settle it:
+
+1. **Evidence beats opinion.** A failing test, a log or a reproduction outweighs a view without
+   one.
+2. **The strictest verdict wins.** If both sides have evidence, the work does not pass until the
+   person who owns that decision rules on it.
 
 ## How the three roles divide the work
 
@@ -24,7 +72,7 @@ nobody asked about.
 |---|---|---|---|
 | Owns | The backlog and its order | The code and its design | The test strategy and suites |
 | Answers | "Is this worth building?" | "How do we build it?" | "Does it work, and how does it break?" |
-| Signs off | Story acceptance | Code review | Release exit criteria |
+| Signs off | Story acceptance | Code review | Release recommendation |
 | Main artifact | Ranked backlog | Merged, tested change | Test cases and defect reports |
 
 ## Product owner
@@ -44,6 +92,8 @@ nobody asked about.
 - **Output:** the top of the backlog holds about two sprints of ready stories.
 - **Done when:** every story planned for the next sprint has criteria, an estimate and no open
   questions.
+- **Handover:** to the team at sprint planning. Most needed: which stories are ready, and the open
+  question on each one that is not.
 
 A common definition of ready uses the INVEST checklist: each story is Independent, Negotiable,
 Valuable, Estimable, Small and Testable.
@@ -61,6 +111,8 @@ Valuable, Estimable, Small and Testable.
   5. Publish the ranked order and the reason for the top items.
 - **Output:** one strictly ordered backlog. No two items share a rank.
 - **Done when:** the team can pull work from the top without asking which comes first.
+- **Handover:** to the team. Most needed: the reason for each top item, so a later re-rank can be
+  argued with.
 
 Two common scoring methods are MoSCoW and WSJF. MoSCoW sorts items into Must, Should, Could and
 Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
@@ -69,15 +121,20 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
 
 - **Trigger:** a developer marks a story done, and at the sprint review at the end of each
   sprint.
-- **Inputs:** the delivered story, its acceptance criteria and the tester's results.
+- **Inputs:** the delivered story and its acceptance criteria. For a medium or high-risk story,
+  also the tester's results.
 - **Steps:**
   1. Check each acceptance criterion against the working software, not against a description of
      it. Record how each one was checked.
-  2. Accept the story, or reject it with the criterion it fails.
+  2. Accept the story, or reject it with the criterion it fails. If the third build is rejected
+     too, stop. Take it to the three amigos (SHARED-1) with the evidence from every round and the
+     options you see. Its criteria are probably unclear.
   3. At the sprint review, demonstrate the accepted stories to stakeholders.
   4. Turn stakeholder feedback into new backlog items.
 - **Output:** each story is accepted or returned. Feedback lands in the backlog.
 - **Done when:** no story from the sprint sits unreviewed.
+- **Handover:** to the developer for a returned story, naming the failed criterion and how it was
+  checked. To stakeholders for the accepted ones.
 
 ### PO-4 Release planning and stakeholder updates
 
@@ -92,6 +149,8 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   4. Raise a scope or date trade-off as soon as the forecast slips.
 - **Output:** a release plan and a regular progress report.
 - **Done when:** stakeholders know what ships next and when.
+- **Handover:** to stakeholders. Most needed: the forecast range and any trade-off waiting on
+  their decision.
 
 ## Developer
 
@@ -105,8 +164,12 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   3. Choose an approach. Record any decision that is costly to reverse, for example as an
      architecture decision record.
   4. Estimate the story with the team.
+  5. Check the risk class agreed at SHARED-1 against the chosen design. Raise it with the product
+     owner if the design changes it.
 - **Output:** a task list, an estimate, and a design note where one was needed.
 - **Done when:** any developer on the team could start the first task.
+- **Handover:** to whoever takes the first task. Most needed: each costly-to-reverse decision and
+  its reason.
 
 ### DEV-2 Code and review
 
@@ -116,10 +179,15 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   1. Write a failing test for the behaviour, then the code that makes it pass.
   2. Keep each change small enough to review in one sitting.
   3. Open a pull request that says what changed, why, and how it was tested.
-  4. Get at least one peer review. Address every comment, either with a fix or with a reason.
-  5. Merge only after the review approves the latest commit.
+  4. Get at least one peer review, or two for a high-risk story. Address every comment, either
+     with a fix or with a reason.
+  5. If the review still blocks after two rounds of fixes, stop. Escalate to a person with the
+     comments from every round and the options you see.
+  6. Merge only after the review approves the latest commit.
 - **Output:** a reviewed change with tests.
 - **Done when:** the change is merged and the build is green.
+- **Handover:** to the tester. Most needed: what changed, how it was tested, and its verification
+  status.
 
 ### DEV-3 Build and merge through CI
 
@@ -133,6 +201,8 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   4. A broken main branch is fixed or reverted before any other work continues.
 - **Output:** a deployable build of the main branch.
 - **Done when:** the pipeline passes and the build is available to test environments.
+- **Handover:** to the tester. Most needed: the build identifier and every pipeline check that
+  did not run.
 
 ### DEV-4 Defect fix
 
@@ -144,9 +214,12 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   3. Trace the fault back to its root cause, not just to where it shows.
   4. Fix the cause and watch the new test pass.
   5. Check whether the same cause affects other code, and fix or report each case.
-  6. If three fixes in a row fail, stop patching. The design is probably wrong, so raise it.
+  6. If three fixes in a row fail, stop patching. Escalate to a person with the evidence from
+     every round and the options you see. The design is probably wrong.
 - **Output:** a fix plus a regression test that guards it.
 - **Done when:** the tester confirms the fix and the regression suite passes.
+- **Handover:** to the tester for retest. Most needed: the root cause, and any other code the same
+  cause affects.
 
 ### DEV-5 Incident response and hotfix
 
@@ -160,6 +233,8 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   5. Hold a blameless post-incident review and put its actions in the backlog.
 - **Output:** restored service, an incident record and follow-up items.
 - **Done when:** service is normal and every follow-up has an owner.
+- **Handover:** to the post-incident review. Most needed: the timeline, what restored service,
+  and each follow-up with its owner.
 
 ## Tester
 
@@ -176,6 +251,8 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   4. Share the cases with the developer before coding starts.
 - **Output:** test cases linked to the story.
 - **Done when:** every acceptance criterion has at least one test case.
+- **Handover:** to the developer before coding starts. Most needed: which cases are automated,
+  and at which level.
 
 ### TEST-2 Exploratory testing
 
@@ -189,6 +266,8 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   4. Report each defect found, using TEST-4.
 - **Output:** session notes and defect reports.
 - **Done when:** the charter is covered or its time box ends.
+- **Handover:** to the developer and the product owner. Most needed: the defects raised, and the
+  parts of the charter the session did not reach.
 
 ### TEST-3 Regression
 
@@ -198,11 +277,15 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   1. Run the suite on each build.
   2. Investigate each failure. Sort it as a real defect, a test needing an update, or a flaky
      test.
-  3. Fix or quarantine flaky tests quickly, because a suite nobody trusts gets ignored.
-  4. Add a test for each fixed defect and each new feature.
-  5. Prune tests that no longer check anything.
+  3. Investigate each test that was skipped or did not run. A skipped test is not a pass. It
+     counts as failed until it runs.
+  4. Fix or quarantine flaky tests quickly, because a suite nobody trusts gets ignored.
+  5. Add a test for each fixed defect and each new feature.
+  6. Prune tests that no longer check anything.
 - **Output:** a suite that passes on a healthy build and fails on a broken one.
 - **Done when:** the suite is green, or every red result has a defect or a fix in flight.
+- **Handover:** to the developer whose change turned the suite red. Most needed: how each red
+  result was sorted, and every test that did not run.
 
 ### TEST-4 Defect reporting and triage
 
@@ -218,9 +301,13 @@ Won't. WSJF, weighted shortest job first, divides cost of delay by job size.
   2. Set severity, meaning how badly it hurts the user.
   3. At triage, the product owner sets priority, meaning how soon it gets fixed.
   4. Triage assigns the defect to a developer, defers it, or closes it with a reason.
-  5. Retest after the fix and close or reopen the report.
+  5. Retest after the fix and close or reopen the report. If the third fix fails retest too,
+     stop. Take the defect back to triage with the evidence from every round and the options you
+     see. Its cause is probably not where the fixes looked.
 - **Output:** a tracked defect with a decision attached.
 - **Done when:** the defect is verified fixed, or closed with a stated reason.
+- **Handover:** to triage, then to the assigned developer. Most needed: the steps to reproduce and
+  the triage decision.
 
 Severity and priority are separate on purpose. A typo on the home page is low severity but can be
 high priority. A crash in a rarely used admin screen can be high severity and low priority.
@@ -233,11 +320,16 @@ high priority. A crash in a rarely used admin screen can be high severity and lo
   1. Run the full regression suite and any release-only checks, such as performance, security
      and upgrade paths.
   2. Check the candidate against each exit criterion. A typical set is: no open critical or high
-     defects, all release stories accepted, and regression green.
-  3. List any known issues that ship, each with a workaround.
-  4. Give a go or no-go recommendation with the evidence behind it.
-- **Output:** a signed release report.
-- **Done when:** the release decision is made and recorded.
+     defects, all release stories accepted, and regression green. A check that was skipped or
+     could not run is not a pass. It counts as failed until it runs.
+  3. For each high-risk story in the release, check its security review and rollback plan.
+  4. List any known issues that ship, each with a workaround.
+  5. Give a go or no-go recommendation with the evidence behind it.
+- **Output:** a release report with a go or no-go recommendation.
+- **Done when:** the recommendation and its evidence reach the release owner.
+- **Handover:** to the release owner, the person who makes the release decision. That is
+  usually the product owner. Most needed: the evidence for each exit criterion, and every check
+  that did not run.
 
 ## Playbooks all three roles share
 
@@ -251,20 +343,56 @@ high priority. A crash in a rarely used admin screen can be high severity and lo
   2. The developer asks how it could be built and what it touches.
   3. The tester asks how it could fail and how anyone would know.
   4. Together they turn the answers into concrete examples and agree the final criteria.
+  5. They agree the story's risk class, low, medium or high, as SHARED-2 defines it. The class
+     decides which checks and sign-offs the story needs.
 - **Output:** agreed acceptance criteria and example cases.
 - **Done when:** all three would judge a finished story the same way.
+- **Handover:** to the product owner, who marks the story ready. Most needed: the agreed criteria
+  and the risk class.
 
 ### SHARED-2 Definition of done
 
+- **Trigger:** anyone is about to call a story, task or change done.
+- **Inputs:** the story, its risk class, and the evidence for each item below.
+- **Steps:**
+  1. Find the story's risk class. If it has none, treat it as high.
+  2. Check each item that applies to that class, and record the evidence for it.
+  3. Report the story done only if every applicable item holds. Otherwise name the item that
+     failed.
+- **Output:** a checked list with the evidence for each item.
+- **Done when:** every applicable item holds, or the failing item is named.
+- **Handover:** to the product owner for acceptance (PO-3). Most needed: the verification status
+  and any item that failed.
+
 The definition of done is a checklist the whole team owns. A story counts as finished only when
-every item on it holds. A typical list:
+every item that applies to it holds. Which items apply depends on the story's risk class:
+
+- **Low:** internal, small and easy to revert.
+- **Medium:** changes behaviour that users see.
+- **High:** touches security, money or personal data, or is hard to reverse, such as a data
+  migration.
+
+Every story needs these:
 
 - Code is reviewed and merged.
 - Unit and integration tests are written and passing.
-- Acceptance criteria are verified by the tester.
 - Regression is green.
+- The handover record is written, with its verification status.
+
+Medium and high stories also need these:
+
+- Acceptance criteria are verified by the tester.
 - Documentation and release notes are updated.
-- The product owner has accepted the story.
+
+High stories also need these:
+
+- A second reviewer has approved the code.
+- A security review has passed.
+- A rollback plan exists and has been tried.
+
+A check that was skipped, or could not run, is not a pass. It counts as failed until it runs.
+
+Product owner acceptance is not on the list, because it comes next, in PO-3.
 
 The team revises the list at retrospectives. It should only grow stricter as the team matures.
 
@@ -277,4 +405,5 @@ The team revises the list at retrospectives. It should only grow stricter as the
 5. The tester explores the built feature (TEST-2) and reports defects (TEST-4).
 6. The developer fixes them (DEV-4).
 7. The story meets the definition of done (SHARED-2) and the product owner accepts it (PO-3).
-8. At release, the tester signs off (TEST-5) and the product owner reports it shipped (PO-4).
+8. At release, the tester recommends go or no-go (TEST-5), the release owner decides, and the
+   product owner reports it shipped (PO-4).

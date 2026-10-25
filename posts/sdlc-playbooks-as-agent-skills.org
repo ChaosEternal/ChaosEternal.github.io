@@ -43,7 +43,7 @@ and that argument produced the thin form described above. To find the gaps, I th
 the [[https://github.com/swcstudiospace/swarm][swarm]] repository, a multi-agent SDLC framework, and
 asked what it would improve. The Sources section below was the last addition.
 
-The swarm comparison revised the post on 2026-10-25. Five of its ideas came across:
+The post was revised on 25 October after that comparison. Five of swarm's ideas came across:
 
 - Every playbook ends by writing a handover record, including whether its result was verified.
 - Every run ends in a named state: done, blocked or failed.

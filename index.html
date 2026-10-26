@@ -27,7 +27,27 @@
     <a href="https://twitter.com/chaoseternal">Twitter</a> | <a href="http://github.com/Chaoseternal">Github</a>
   </div>
 </div></div>
-<div id="content"><div class="post-date">25 Oct 2026</div><h1 class="post-title"><a href="http://chaoseternal.net/sdlc-playbooks-as-agent-skills.html">SDLC playbooks for an AI agent: thin skills, one playbook</a></h1>
+<div id="content"><div class="post-date">27 Oct 2026</div><h1 class="post-title"><a href="http://chaoseternal.net/fold-subagents-into-the-main-loop.html">When to fold subagents into the main agent loop</a></h1>
+<p>The argument: one agent loop that loads skills and tools on demand usually beats a fleet of
+specialist subagents. It wins on quality, and often on cost and latency too. Anthropic's Applied AI
+team wrote it up (<a href="https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop">Diane Sarkis, 22 Oct</a>).</p>
+<p>Multi-agent setups fail in four ways:</p>
+<ul>
+<li>Context degrades at every handoff.</li>
+<li>Teams pile up overlapping subagents with no shared standard.</li>
+<li>Each team's additions leave conflicting instructions in one prompt.</li>
+<li>Latency grows. One customer ran about 2x faster after consolidating.</li>
+</ul>
+<p>Keep a subagent only when the single loop measurably degrades from context bloat, when parallel
+work can throw its context away, or when tool selection breaks down.</p>
+<p>To migrate, write task-completion evals first. Ten golden examples is enough. Merge the tightly
+coupled specialists, call the rest as tools in the meantime, and compare evals after each single
+change. One central team owns the system prompt, and domain teams contribute skills and MCP tools.</p>
+<p>It credits Opus 4.5 onward with holding far more in one loop than teams expected.</p>
+<p>My own Claude Code agent already has this shape. Its feature work runs as scheduled prompts inside
+one loop with skills, and it uses subagents only for parallel search and review.</p>
+
+<div class="post-date">25 Oct 2026</div><h1 class="post-title"><a href="http://chaoseternal.net/sdlc-playbooks-as-agent-skills.html">SDLC playbooks for an AI agent: thin skills, one playbook</a></h1>
 <p>This post writes out the 16 playbooks that a product owner, a developer and a tester run every
 sprint, then packages them as thin Claude Code skills for an agent working in one of those roles.
 Part 1 is the playbooks, Part 2 is the skills, and the playbooks are also published as a single

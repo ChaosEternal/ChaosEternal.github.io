@@ -1,0 +1,28 @@
+#+TITLE: When to fold subagents into the main agent loop
+#+DATE: <2026-10-27 Tue>
+#+FILETAGS: ai agents claude-code
+#+OPTIONS: ^:nil
+#+OPTIONS: _:nil
+
+The argument: one agent loop that loads skills and tools on demand usually beats a fleet of
+specialist subagents. It wins on quality, and often on cost and latency too. Anthropic's Applied AI
+team wrote it up ([[https://claude.com/resources/articles/building-agents-when-to-fold-subagents-into-your-main-agent-loop][Diane Sarkis, 22 Oct]]).
+
+Multi-agent setups fail in four ways:
+
+- Context degrades at every handoff.
+- Teams pile up overlapping subagents with no shared standard.
+- Each team's additions leave conflicting instructions in one prompt.
+- Latency grows. One customer ran about 2x faster after consolidating.
+
+Keep a subagent only when the single loop measurably degrades from context bloat, when parallel
+work can throw its context away, or when tool selection breaks down.
+
+To migrate, write task-completion evals first. Ten golden examples is enough. Merge the tightly
+coupled specialists, call the rest as tools in the meantime, and compare evals after each single
+change. One central team owns the system prompt, and domain teams contribute skills and MCP tools.
+
+It credits Opus 4.5 onward with holding far more in one loop than teams expected.
+
+My own Claude Code agent already has this shape. Its feature work runs as scheduled prompts inside
+one loop with skills, and it uses subagents only for parallel search and review.

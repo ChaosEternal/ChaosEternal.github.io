@@ -1,0 +1,56 @@
+#+TITLE: Agent skills: the written content does the work, not the wrapper
+#+DATE: <2026-10-30 Fri>
+#+FILETAGS: ai agents skills papers
+#+OPTIONS: ^:nil
+#+OPTIONS: _:nil
+
+Two new papers on agent skills reach the same conclusion from opposite ends. The hand-written
+content does the work, and the skill wrapper adds little.
+
+The first paper is "Does Your Generalist Skill Optimizer Really Incentivize Agentic Tasks?" from
+Shanghai AI Lab ([[https://arxiv.org/abs/2610.37201][arXiv:2610.37201]], code at
+[[https://github.com/valleysprings/BiPA][valleysprings/BiPA]]). The authors ran three published
+optimizers: GEPA, SkillOpt and SkillAdam. Each one rewrites an agent's skill and keeps an edit if it
+scores better on a dev set of at most 30 tasks. They tested on Terminal-Bench 2.1, τ³-bench and
+AutomationBench, with DeepSeek-V4.1-Flash and GPT-6-Luna running in OpenCode. Every run started from
+the same hand-written "verify before completion" skill. They found:
+
+- Over 16 learned skills, test success is 0.1 points above the seed. Single skills range from -11.1
+  to +6.4.
+- The reported dev gains of 3 to 17 points are what luck alone produces. Feeding the unchanged seed
+  through each optimizer's acceptance rule reaches those gains with probability 0.56 to 0.94.
+- Learned skills read 16% more input tokens. 58 of 59 edits made the skill longer. About half the
+  added rules say "re-check your work", and none say "read less".
+- The cost comes from extra turns, not longer text. Turns explain 93% of an edit's token change and
+  skill length explains 10%, because every turn re-sends the whole history. 10% more turns costs 14
+  to 16% more tokens.
+- The skills do not transfer to another model or benchmark, but their cost does.
+
+They propose four rules for optimizers. Accept an edit only if it beats what selection alone
+produces. Charge an edit for the turns it adds. Let the editor delete and merge rules. Show the
+editor what its earlier rules cost.
+
+The second paper is M4Bench from MIT's Laboratory for Computational Physiology, in the NeurIPS 2026
+datasets track ([[https://arxiv.org/abs/2610.37459][arXiv:2610.37459]], code at
+[[https://github.com/hannesill/m4][hannesill/m4]]). Its 28 tasks ask a coding agent to derive
+clinical variables such as SOFA, KDIGO and Sepsis-3 from the MIMIC-IV and eICU databases. Two
+clinicians reviewed each skill file. The main runs used Codex with GPT 5.4 Mini and GPT 5.5, five
+trials per task. Reward is the mean per-column match rate against a reference output. They found:
+
+- Skills raised reward by 0.136 and improved 26 of 28 tasks.
+- On an 8-task subset, a complete written spec with no item IDs or dataset recipes raised reward by
+  0.162. Skills added 0.024 on top, which is within noise.
+- On a 10-task subset, a skill written for the wrong task scored the same as no skill, 0.554 against
+  0.553. Pasting the raw reference SQL matched the real skill, 0.837 against 0.833.
+- The gains are partial matches, not solved tasks. Only 25 of 280 with-skill runs passed every
+  strict check. Skills fix values on rows the agent already found, but barely change which rows it
+  returns.
+- A Claude Code replication with Opus 4.7 and Sonnet 4.6 over 560 runs gave +0.120. The authors call
+  it descriptive only, because CLI versions differed between conditions.
+- A small gpt-oss-20b arm gained nothing, so a spec does not substitute for base capability.
+
+Two caveats apply. The control subsets were fixed in advance but over-represent tasks with big
+effects. The scores measure agreement with public MIMIC code, not clinical correctness.
+
+The first paper's failure mode matches the lesson loop in my own Claude Code agent. That loop adds
+lessons after failures and never retires them.

@@ -1,4 +1,4 @@
-#+TITLE: Agent skills: the written content does the work, not the wrapper
+#+TITLE: We need to rethink agent skills: they are not that helpful
 #+DATE: <2026-10-30 Fri>
 #+FILETAGS: ai agents skills papers
 #+OPTIONS: ^:nil

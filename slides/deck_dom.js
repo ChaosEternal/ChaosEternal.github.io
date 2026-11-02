@@ -14,8 +14,8 @@
  * prevent.
  *
  * Nothing here decides anything about the deck.  Theme, per-slide layouts,
- * slide grouping and pagination all arrive already settled in the specs, whose
- * layout-name whitelist view_specs applied (#462).  A JS-side default would be
+ * slide grouping, pagination and chrome all arrive already settled in the
+ * specs, whose layout-name whitelist view_specs applied (#462).  A JS-side default would be
  * a second, divergent home for that whitelist.  test_server.py counts the
  * reads across both JS files to keep it that way.
  */
@@ -93,6 +93,26 @@
         return bar;
     }
 
+    /* The frame round a slide (DR-12): a top bar naming the deck and a line
+     * along the bottom edge holding the footer text.  Both are absolutely
+     * placed in the slide's padding, so they take no room from its rows and
+     * add nothing to the height the fit check measures (test_theme_css.py
+     * holds them inside it).  The text is the deck author's front matter, so
+     * it goes in as textContent.  An empty top bar is left out; the footer
+     * line stays as the frame's bottom edge whether or not it has words. */
+    function appendChrome(doc, section, chrome) {
+        if (chrome.header) {
+            var header = doc.createElement("div");
+            header.className = "slide-header";
+            header.textContent = chrome.header;
+            section.appendChild(header);
+        }
+        var footer = doc.createElement("div");
+        footer.className = "slide-footer";
+        footer.textContent = chrome.footer || "";
+        section.appendChild(footer);
+    }
+
     /* Build the deck element for `specs`.  `onAction` receives the action
      * string of a pressed control and may be omitted, which renders a deck
      * whose controls do nothing — useful before navigation is wired.
@@ -108,17 +128,34 @@
             section.className = "slide layout-" + slide.layout;
             section.setAttribute("data-slide", slide.index);
 
-            for (var j = 0; j < slide.rows.length; j++) {
-                var row = slide.rows[j];
-                var blockEl = doc.createElement("div");
-                blockEl.className = "slide-block";
-                // The review-mode anchor, carried onto the slide: same block,
-                // same line range, whichever mode you are looking at.
-                setLineAttrs(blockEl, row);
-                blockEl.innerHTML = row.html;
-                section.appendChild(blockEl);
+            // A two-column slide arrives cut into regions (DR-11), each a
+            // start/end slice of its rows; any other slide is one region
+            // holding every row, mounted straight on the section.  Which
+            // slides get regions is view_specs' decision, not this file's.
+            var regions = slide.regions && slide.regions.length
+                ? slide.regions
+                : [{ name: null, start: 0, end: slide.rows.length }];
+            for (var r = 0; r < regions.length; r++) {
+                var region = regions[r];
+                var parent = section;
+                if (region.name) {
+                    parent = doc.createElement("div");
+                    parent.className = "slide-region region-" + region.name;
+                    section.appendChild(parent);
+                }
+                for (var j = region.start; j < region.end; j++) {
+                    var row = slide.rows[j];
+                    var blockEl = doc.createElement("div");
+                    blockEl.className = "slide-block";
+                    // The review-mode anchor, carried onto the slide: same
+                    // block, same line range, whichever mode you are in.
+                    setLineAttrs(blockEl, row);
+                    blockEl.innerHTML = row.html;
+                    parent.appendChild(blockEl);
+                }
             }
 
+            if (specs.chrome) appendChrome(doc, section, specs.chrome);
             if (specs.paginate) {
                 var num = doc.createElement("div");
                 num.className = "slide-number";
@@ -183,12 +220,64 @@
         return detach;
     }
 
+    /* The fit check (DR-10).  A slide is a fixed 1920x1080 box with
+     * `overflow: auto`, so content that does not fit used to get an inner
+     * scrollbar and nothing else.  The rule is to split a crowded slide, never
+     * to shrink it, so the check only reports.
+     *
+     * It measures the slide the browser actually laid out rather than
+     * estimating from text length: fonts, images, tables and diagrams decide
+     * the height, and only the browser knows them.  `transform: scale` leaves
+     * scroll and client sizes alone, so the figures are stage pixels, the
+     * same on a phone and a monitor.  One pixel of slack absorbs sub-pixel
+     * rounding on a slide that fits exactly.
+     *
+     * The figure is only whole because style.css centres slides with `safe
+     * center`.  Plain `center` spills an overflow above the top edge too,
+     * where scrollHeight does not count it (test_theme_css.py guards this). */
+    var FIT_SLACK = 1;
+
+    function slideOverflow(section) {
+        var over = Math.max(section.scrollHeight - section.clientHeight,
+                            section.scrollWidth - section.clientWidth);
+        return over > FIT_SLACK ? over : 0;
+    }
+
+    /* Measure every slide in `deck` and return the numbers (1-based) of
+     * those that overflow.  Slides off screen are `hidden`, which lays them
+     * out at 0x0, so each is shown for its measurement and put back as it
+     * was.  A slide that still measures 0x0 is not laid out and is left out
+     * of the list.  A deck that is itself hidden measures nothing, so the
+     * answer is null.
+     *
+     * It only measures and never marks a slide: whoever opens a deck is a
+     * viewer, and the author is an agent, so the answer goes to fit_check.py
+     * (DR-13) and the viewer sees nothing (DR-16). */
+    function checkFit(deck) {
+        if (!(deck.clientWidth > 0) || !(deck.clientHeight > 0)) return null;
+        var sections = deck.querySelectorAll("section.slide");
+        var over = [];
+        for (var i = 0; i < sections.length; i++) {
+            var section = sections[i];
+            var wasHidden = section.hidden;
+            section.hidden = false;
+            if (section.clientWidth > 0 && section.clientHeight > 0
+                    && slideOverflow(section)) {
+                over.push(i + 1);
+            }
+            section.hidden = wasHidden;
+        }
+        return over;
+    }
+
     var api = {
         PRESENTATION_CONTROLS: PRESENTATION_CONTROLS,
         attachStageFit: attachStageFit,
         stageScale: stageScale,
         buildControls: buildControls,
         buildDeck: buildDeck,
+        checkFit: checkFit,
+        slideOverflow: slideOverflow,
     };
 
     if (typeof module !== "undefined" && module.exports) {

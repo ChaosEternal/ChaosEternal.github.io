@@ -6,8 +6,10 @@ end-exclusive) giving its source line range.  Blocks are rendered to HTML
 and returned with their source line ranges for comment anchoring.
 """
 
+import csv
 import hashlib
 import html as html_mod
+import io
 import posixpath
 import re
 from urllib.parse import quote, unquote
@@ -18,7 +20,7 @@ from mdit_py_plugins.front_matter import front_matter_plugin
 # Allowed HTML tags for sanitized output (defense-in-depth).
 _ALLOWED_TAGS = frozenset({
     "a", "abbr", "b", "blockquote", "br", "code", "dd", "del", "div", "dl",
-    "dt", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "ins", "kbd",
+    "dt", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "img", "ins", "kbd",
     "li", "ol", "p", "pre", "q", "s", "samp", "small", "span", "strong",
     "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "tt", "u",
     "ul", "var",
@@ -30,6 +32,8 @@ _ALLOWED_ATTRS = {
     "abbr": {"title"},
     "code": {"class"},
     "div": {"class"},
+    # `src` survives only as a `/download` URL; see `_IMAGE_SRC_PREFIX`.
+    "img": {"src", "alt", "title"},
     "pre": {"class"},
     # A cell can also carry a `class`, which this table cannot express: it is
     # synthesized from `style` by `_CELL_ALIGN_RE` below, never copied from the
@@ -37,6 +41,13 @@ _ALLOWED_ATTRS = {
     "td": {"align"},
     "th": {"align"},
 }
+
+# The one place an image may load from (DR-17).  A `src` on a remote host would
+# make the reader's browser fetch it as the page loads, carrying whatever the
+# URL holds, and any other route on this server is not an image.  A relative
+# `src` arrives here already rewritten by `_resolve_doc_link`, so a prefix
+# check on the finished attribute is the whole rule.
+_IMAGE_SRC_PREFIX = "/download?path="
 
 _TAG_RE = re.compile(r"<(/?)(\w+)(\s[^>]*)?>", re.DOTALL)
 _ATTR_RE = re.compile(r'(\w+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|\S+)')
@@ -77,6 +88,8 @@ def _sanitize_html(html: str) -> str:
                     kept_attrs.append(f'class="align-{side.group(1).lower()}"')
                 continue
             if attr_name in allowed:
+                if attr_name == "src" and not attr_val.startswith(_IMAGE_SRC_PREFIX):
+                    continue
                 # Block dangerous URI schemes in href
                 if attr_name == "href" and re.match(
                     r"\s*(javascript|data|vbscript):", attr_val, re.IGNORECASE
@@ -278,6 +291,12 @@ _URI_SCHEME_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+.\-]*:")
 # What the server shows (DR-5).  Markdown is reviewed at `/view`; these are
 # offered at `/download` instead, and every other file is not served at all.
 MARKDOWN_EXTS = frozenset({".md", ".markdown"})
+# Delimited tables (DR-19), reviewed at `/view` beside markdown.  The delimiter
+# comes from the extension alone: `csv.Sniffer` guesses, and a guess that
+# flips when a row is edited would re-split every record.
+TABLE_DELIMITERS = {".csv": ",", ".tsv": "\t"}
+TABLE_EXTS = frozenset(TABLE_DELIMITERS)
+REVIEW_EXTS = MARKDOWN_EXTS | TABLE_EXTS
 DOWNLOAD_EXTS = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".svg"})
 
 
@@ -379,6 +398,19 @@ def _new_parser(doc_path: str | None = None) -> MarkdownIt:
             return default(tokens, idx, options, env)
 
         md.renderer.rules["link_open"] = _link_open
+
+        # An image resolves exactly as a link to the same file would, which
+        # for the types the server offers is `/download`.  Anything else keeps
+        # its src here and loses it in `_sanitize_html`.
+        default_image = md.renderer.rules["image"]
+
+        def _image(tokens, idx, options, env):
+            resolved = _resolve_doc_link(tokens[idx].attrGet("src") or "", doc_path)
+            if resolved is not None:
+                tokens[idx].attrSet("src", resolved)
+            return default_image(tokens, idx, options, env)
+
+        md.renderer.rules["image"] = _image
     return md
 
 
@@ -408,6 +440,10 @@ def render_markdown_blocks(source: str, doc_path: str | None = None) -> list[dic
     got.  ``block_id`` hashes the block's ``raw`` source, so it does not move
     either way.
     """
+    delimiter = _table_delimiter(doc_path)
+    if delimiter is not None:
+        return render_table_blocks(source, delimiter)
+
     lines = source.split("\n")
     md = _new_parser(doc_path)
     tokens = md.parse(source)
@@ -450,6 +486,67 @@ def render_markdown_blocks(source: str, doc_path: str | None = None) -> list[dic
                 block_start_idx = None
         i += 1
 
+    return _assign_block_ids(
+        blocks or [{"start_line": 1, "end_line": 1, "raw": "", "html": ""}]
+    )
+
+
+def _table_delimiter(doc_path: str | None) -> str | None:
+    """The delimiter for a table file at *doc_path*, or ``None`` for markdown."""
+    if not doc_path:
+        return None
+    return TABLE_DELIMITERS.get(posixpath.splitext(doc_path)[1].lower())
+
+
+def render_table_blocks(source: str, delimiter: str) -> list[dict]:
+    """Render a delimited table as blocks, one per record (DR-19).
+
+    A record is the unit a comment anchors to, the way a paragraph is in
+    markdown.  It usually spans one line, but a quoted field may hold
+    newlines, so the range comes from the reader's ``line_num`` rather than
+    from counting rows.  The first record is the header.
+
+    Each block is a one-row ``<table>`` of its own, because every block is its
+    own row in the review layout.  Short records are padded to the widest
+    record so that, under the stylesheet's fixed layout, the columns of the
+    separate tables line up.  Cells are escaped text: a CSV cell is data, not
+    markdown.
+    """
+    lines = source.split("\n")
+    reader = csv.reader(io.StringIO(source, newline=""), delimiter=delimiter)
+    records: list[tuple[int, int, list[str]]] = []
+    end = 0
+    try:
+        for row in reader:
+            start, end = end + 1, reader.line_num
+            if row:  # a blank line is no record
+                records.append((start, end, row))
+    except csv.Error:
+        # A stray quote can swallow the rest of the file into one field, which
+        # the reader refuses past its field limit.  Show the lines as they are,
+        # split without quoting, rather than fail the page.
+        records = [
+            (number, number, line.split(delimiter))
+            for number, line in enumerate(lines, 1)
+            if line
+        ]
+    width = max((len(row) for _, _, row in records), default=0)
+
+    blocks = []
+    for index, (start, end, row) in enumerate(records):
+        tag = "th" if index == 0 else "td"
+        cells = "".join(
+            f"<{tag}>{html_mod.escape(cell)}</{tag}>"
+            for cell in row + [""] * (width - len(row))
+        )
+        section = "thead" if index == 0 else "tbody"
+        blocks.append({
+            "start_line": start,
+            "end_line": end,
+            "type": "table_header" if index == 0 else "table_row",
+            "raw": "\n".join(lines[start - 1 : end]),
+            "html": f'<table class="csv-table"><{section}><tr>{cells}</tr></{section}></table>',
+        })
     return _assign_block_ids(
         blocks or [{"start_line": 1, "end_line": 1, "raw": "", "html": ""}]
     )

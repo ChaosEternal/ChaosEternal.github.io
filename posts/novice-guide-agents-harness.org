@@ -1,0 +1,264 @@
+#+TITLE: A novice guide to agents and harness
+#+DATE: <2026-11-02 Mon>
+#+FILETAGS: ai agents harness guide
+#+OPTIONS: ^:nil
+#+OPTIONS: _:nil
+
+The same material is also a slide deck: [[https://www.chaoseternal.net/slides/standalone.html?talk=novice-guide-agents-harness.md][A novice guide to agents and harness, as slides]].
+
+This guide is for someone who has used ChatGPT or Claude in a chat window and has never built an
+agent. By the end you should be able to name the parts of any agent product. You should also be
+able to say which part a new feature changes, and how you would know whether the change helped.
+
+I build and run my own agent, a Claude Code agent that reads my email, keeps a knowledge
+base and works through a task board. I use it for the examples.
+
+* 1. A chat model on its own
+
+A language model takes text in and gives text out, one reply at a time. Everything else you have
+seen a chat product do is built around that.
+
+On its own, a model has three limits:
+
+- *It cannot act.* It can write a command, but it cannot run one.
+- *It remembers nothing between calls.* A chat window looks like a conversation because the app
+  sends the whole conversation again with every new message.
+- *It knows only what is in front of it.* Its training gives it general knowledge. Your files,
+  your inbox and today's date reach it only if something puts them in the text.
+
+Picture a brilliant consultant on a phone call. They have no hands and no notebook, and they hear
+only what you read to them.
+
+* 2. An agent is a model in a loop with tools
+
+An agent gives the consultant hands. The trick is a loop:
+
+#+begin_example
+messages = [instructions, user_request]
+while True:
+    reply = model(messages)
+    messages.append(reply)
+    if reply.tool_calls is empty:
+        break                       # the model says it is done
+    for call in reply.tool_calls:
+        result = run_tool(call)     # my code acts, not the model
+        messages.append(result)
+show(reply)
+#+end_example
+
+Three words come from this loop, and the rest of the guide uses them:
+
+- *Turn:* one pass through the loop, meaning one call to the model.
+- *Tool call:* a structured request in the model's reply, such as "read the file ~notes.md~".
+- *Tool result:* what my code got back from running that tool. It goes into the messages, so the
+  model reads it on the next turn.
+
+The model never touches the world. It asks, my code acts, and the result comes back as more text.
+
+* 3. The harness is everything except the model
+
+Osmani, Saboo and Kartakis put it in one line in May 2026: Agent = Model + Harness. The harness is
+the loop plus everything that decides what the model sees and what it may do.
+
+Claude Code, Codex CLI and Cursor are harnesses. Each of them rents a model from a lab, and the same
+model behaves differently in each. When people argue about which agent is better, they are usually
+arguing about harnesses.
+
+That matters to a beginner because the model is the one part you cannot change. You pick it. The
+harness is where all of your decisions live.
+
+* 4. The model sees only its context window
+
+The *context window* is all the text the model reads on one turn. It is measured in *tokens*,
+pieces of words about three-quarters of a word long. A window holds a fixed number of them.
+
+Two facts about the window drive almost every design decision:
+
+- *It is finite.* Whatever does not fit is simply not there.
+- *It is re-read in full on every turn.* A turn does not see only the newest message. It sees the
+  instructions, every earlier message and every tool result, again. A big tool result admitted on
+  turn 3 is paid for on turns 4, 5 and 6.
+
+I wrote a whole post arguing that this is the only thing, titled *Context management is the only
+thing in agent*. The short form: once the model is rented and the loop is written, the only decision
+left is which tokens the model reads on each turn. For a model, what is real is the tokens in its
+window.
+
+Every harness feature does one of three things to the window:
+
+- *Admit:* decide what goes in. Tool definitions, instructions, tool results, retrieved notes.
+- *Evict:* decide what comes out. Summarising old turns, truncating a long output, or running a
+  script that reads raw output so the model sees only the answer.
+- *Recall:* decide how evicted text gets back in. By name, by search, or by an index the model
+  reads.
+
+Each one fails in its own way. Admit too much and every later turn pays for it. Evict the wrong
+thing and a fact is gone. Recall by the wrong key and the agent cannot find what it cannot name.
+
+* 5. The parts of a harness, one at a time
+
+Here are the parts you will meet in every agent product, each with an example from mine.
+
+- *Tools: what the model can do.* Mine has a shell, file editing, web fetch and a Gmail client. A
+  tool's description is itself a prompt. The model picks tools by reading their descriptions, so a
+  vague description means the wrong tool.
+- *Instructions: the standing text loaded on every turn.* In Claude Code this is ~CLAUDE.md~. Mine
+  holds the rules that cost something to learn, such as "reply to an email once you have acted on
+  it". Every word in it is admitted on every turn, so it has to stay short.
+- *Memory: what survives from one session to the next.* Each run of my agent starts blank. It
+  knows what happened yesterday only because yesterday's run wrote notes and today's run reads them.
+- *Knowledge and skills: text loaded only when the task needs it.* A skill is a short name that
+  sits in the window, with a longer body that loads when the name matches the task. A knowledge base
+  is a set of pages the agent can look up.
+- *Guardrails: what the agent may not do.* Permissions, a sandbox and timeouts. My agent runs in a
+  container. Every run also has a time budget, because all its jobs share one queue.
+- *Verification: what tells the agent it is wrong.* Tests, type checkers, and a second model that
+  reviews a change before it merges. My agent may not merge its own code until a reviewer passes it.
+
+Two of these parts are worth a closer look, because they are where beginners spend effort for little
+return.
+
+*Memory has two shapes.* Writing a note is easy. Getting it back is the hard half, and there are
+only two ways:
+
+- *Pushed* memory loads into every run before the task is read. It is the only place a correction
+  works, because the model reads it before it knows it is about to make the mistake. It costs tokens
+  on every turn, so it must stay small.
+- *Pulled* memory loads only when the model searches for it. It costs nothing until read, but it
+  works only when the model already suspects the answer is there and can name the key.
+
+A pile of notes searched by similarity fails both ways. It grows without limit, and the model cannot
+search for a note it does not know exists.
+
+*A skill is a loading rule, not a capability.* Two October 2026 papers measured this. In
+M4Bench, an operational spec alone raised reward by 0.162, and wrapping it as skills added only
+0.024. The content did the work. Another paper ran three skill optimizers over 16 learned skills.
+Test success rose 0.1 points, while the agent read 16% more tokens, mostly from extra turns. My
+conclusion: write good content, and keep the wrapper thin.
+
+That is why my agent keeps a *knowledge base*, following Andrej Karpathy's LLM wiki pattern:
+
+- *Raw sources stay unchanged.* Emails, papers and daily notes go in once.
+- *The model maintains the wiki.* It compiles each source into topic pages and updates a page
+  when a new source changes it.
+- *An index names every page.* The model reads the index first, so it recalls by a name it can see
+  rather than a key it has to guess.
+
+The work happens once, when a source arrives, instead of on every turn. When my agent needs
+background, it admits one dense, current page rather than ten raw notes that disagree. With that in
+place, its skills stay short procedures and its memory stays short-lived.
+
+One more word needs separating early. *Verification* checks one task: did this change pass its
+tests? *Evaluation*, in sections 8 and 9, runs many tasks and judges the whole agent. The two get
+mixed up constantly, and they answer different questions.
+
+* 6. One task, end to end
+
+Here is one real request through my agent: the one that produced this guide.
+
+1. *I send an email*, subject "A novice guide to agents and harness", body "Can you draft an
+   outline". No agent is running at that moment.
+2. *A sensor notices it.* A small script without a model, ~gmail-check~, polls the inbox every
+   minute. It finds one unread message and writes a short JSON note addressed to the agent. *Part:
+   guardrails and plumbing. The cheap, deterministic work happens without a model.*
+3. *The harness starts a run.* A scheduler sees the note and launches Claude Code with the note as
+   its prompt. Before the task is read, the window already holds ~CLAUDE.md~, the memory index and
+   lessons from earlier failures. /Parts: instructions and pushed memory./
+4. *The model reads the email.* Its first tool calls list the inbox, fetch the message, and run a
+   classifier that says the sender is me. *Parts: tools and guardrails. Mail from anyone else gets no
+   reply and no action.*
+5. *It records the work.* It creates a card on the task board before writing anything, because
+   that is a rule in its instructions. /Part: instructions./
+6. *It gathers background.* It reads my earlier posts and its own notes on the papers it has
+   summarised for me, by name, from the knowledge base and memory. *Parts: knowledge base and pulled
+   memory.*
+7. *It writes the outline*, commits it to a git repository, and checks that the review site
+   serves it. /Parts: tools and verification./
+8. *It replies* with a link and two open questions, then writes a memory note saying what it sent
+   and what it is waiting for. The next run starts blank and will need that note. /Part: memory./
+
+Each step is a decision about the window. The run did not need a smarter model. It needed the right
+email, rules and notes in front of the model at the right turn.
+
+* 7. Where agents fail, and which part to fix
+
+Most failures come from the harness, not the model. When my agent gets something wrong, the cause is
+almost always one of three things:
+
+- *The context was wrong.* The fact it needed was missing, or buried under text it did not need.
+- *A tool was missing.* It could not check something, so it guessed.
+- *No check ran on the result.* It said "done" and nothing disagreed.
+
+Four mistakes come up again and again in beginners' agents:
+
+- *Stuffing the window with everything.* More text is not more knowledge. It is more for the model
+  to read past on every turn, and the important line gets lost.
+- *Giving the model dozens of tools.* Each definition costs tokens on every turn, and similar
+  tools get confused. Start with a few, and add one only when a task needs it.
+- *Adding no way to verify the work.* An agent that cannot run a test cannot tell a working change
+  from a plausible one.
+- *Believing "done" without evidence.* Ask for the command it ran and what that command printed.
+
+A fifth one is fashionable: *splitting the work across many subagents.* A subagent is a second
+agent that the first one calls like a tool. It feels like good engineering. In practice, context
+degrades at every handoff, the specialists overlap, and the run gets slower. Anthropic's applied AI
+team found that one loop loading skills and tools on demand usually beats a fleet of specialists,
+and one customer ran about twice as fast after merging them. Keep a subagent only when the work can
+run in parallel and its context can be thrown away afterwards, such as a search or a review.
+
+* 8. Evaluations: how you know an agent works
+
+An *evaluation* is a fixed set of tasks, each with a way to score the result, run the same way
+every time. A demo that worked once is not an evaluation.
+
+*Score what the agent did, not what it said.* A memory test should check that the agent took the
+right action because of what it remembered, not that it can recite the fact when asked.
+DolphinBench (Mem0, 2026) is built this way. It grades agents by the action they take. An agent that
+can quote last week's instruction and then ignores it fails.
+
+There are three ways to score, from cheapest and most reliable to most fragile:
+
+- *A program checks the result.* The tests pass, the file exists, the email went to the right
+  address.
+- *A person scores against a rubric.* Slow, but it catches what a program cannot express.
+- *Another model judges.* Cheap to run and easy to fool, so it needs its own checks: spot-check its
+  scores by hand.
+
+*One run is an anecdote.* Agents vary from run to run, even on the same task. Run each task
+several times and report the spread, not the best result.
+
+You do not need a big benchmark to start. Ten tasks with known good results is enough to catch most
+regressions.
+
+* 9. Evaluating a change to your agent
+
+Every harness change is a guess until it is measured. That covers a new instruction, a new tool and a
+new memory note. The test is simple: run the same tasks with the change and without it, and compare.
+
+*Blind changes can make an agent worse.* Harness^2 (Google, 2026) studied agents that edit their
+own harness. When the edits were made without per-task evidence of what went wrong, the score fell
+from 73.4% to 63.2%. The edits felt like improvements. The measurement said otherwise.
+
+*A broken evaluation lies.* BenchJack (Berkeley, 2026) scored near-perfect on ten public agent
+benchmarks without solving a single task. It exploited how the scores were computed. The cheap
+defence takes one run: an agent that does nothing must score zero. If yours scores more, fix the
+evaluation before you trust any number it produces.
+
+My own agent has a gap here, and it is a common one. It writes down a lesson after every failure and
+loads recent lessons into every run. It has never measured whether those lessons help, because it
+has never run the same tasks without them. Until it does, the lessons are a guess that costs tokens
+on every turn.
+
+* 10. How to start
+
+- *Use an existing harness* such as Claude Code before writing your own. You will learn what the
+  parts do before you have to build them.
+- *Write the instructions file first.* Put in only what the model cannot infer, and keep it short.
+- *Add one tool at a time,* each with a description that says when to use it.
+- *Give the agent a test or checker* it can run on its own work.
+- *Write ten evaluation tasks before the second feature,* including one where doing nothing must
+  score zero, and rerun them after every change.
+- *Ask of every new feature what it does to the window.* Does it admit, evict or recall, and what
+  does it cost on every turn?
+</content>
+</invoke>

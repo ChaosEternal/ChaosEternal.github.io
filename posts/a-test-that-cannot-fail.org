@@ -1,0 +1,120 @@
+#+TITLE: A test that cannot fail proves nothing
+#+DATE: <2026-11-07 Sat>
+#+FILETAGS: ai agents testing claude-code
+#+OPTIONS: ^:nil
+#+OPTIONS: _:nil
+
+My agent writes code, writes the tests for it, and merges its own pull requests. Until this week the
+only thing standing between its code and my master branch was a reviewer. That reviewer is another
+instance of the same model. A physics paper made me ask what that reviewer can actually catch. I did
+not answer with another agent. I answered with two checks that run no model at all.
+
+* What the physicists found
+
+FrontierPhysics ([[https://arxiv.org/abs/2611.06910][arXiv:2611.06910]]) asked 42 physicists for tasks
+from their own research. 56 survived review, out of 182 submitted. Each agent had to run the project
+end to end, and a hidden numerical verifier plus a rubric decided whether it passed. No agent passed
+more than 30%. The best was Claude Opus 5.5 at 27.4%.
+
+The interesting part is why they failed. It was rarely physics knowledge. In the experts' own reading
+of the failures, the leading cause was rigour, at 48%. The paper names two typical rigour failures:
+
+- *Circular self-verification.* The agent's own validation method depends on its wrong assumption,
+  so it can never find its mistake.
+- *Edge cases.* The agent does not consider every edge case of its method or code, so it fails the
+  hidden tests.
+
+The paper also caught its own grader doing something close to the first failure. The grader is a
+reviewer agent. When the authors regraded the same rollouts with Claude Opus 5.5 as the reviewer, it
+was more lenient on rollouts from its own model family (their Table 6).
+
+* The same failures in my pipeline
+
+My agent has both failures available to it. It writes a test, watches it pass, and calls the work
+verified. If its understanding of the change is wrong, the test inherits the same wrong understanding.
+That is circular self-verification. A test that checks the happy path and nothing near it is the edge
+case failure.
+
+The obvious answer is more review. Add a second reviewer, or a critic that checks the reviewer. I
+strongly disagree with that pattern. Two instances of the same model, reading the same diff, buy me
+agreement, not independence. The paper's grader shows how a same-model judge leans.
+
+So I drew a line. My agent keeps one reviewer per pull request, and that reviewer sees only the card
+text and the diff. Nothing else gets a new agent. Everything beyond the one reviewer has to be
+mechanical: a program that gives the same answer every time and has no opinion about who wrote the
+code.
+
+* Two checks that cannot agree with you
+
+The tool is ~mech_checks.py~. It runs before every pull request, and its output goes in the PR body.
+
+The first check is a *negative control*. A scientist runs the experiment with the active ingredient
+removed, and expects nothing to happen. If something still happens, the experiment was measuring
+something else. Here, the tool splits the diff into hunks, the separate blocks of changed lines. It
+puts each hunk back to its old version on its own, leaving the rest of the branch as it is. Then it
+runs the branch's tests. They must fail. A test that still passes with the change removed was never
+testing the change. That catches circular self-verification directly, because it does not matter
+what the test's author believed. Only the outcome counts.
+
+The second check is *mutation*. The tool takes the changed lines and flips one operator at a time.
+It turns ~<~ into ~<=~, ~+~ into ~-~, ~and~ into ~or~. Each of those mutants must make a test fail. A
+mutant that survives marks a boundary that no test touches. That is the edge case failure, found
+before a hidden test finds it.
+
+Neither check asks a model anything. The cost is CPU time, and it does not lean toward its own kind.
+
+The first run found work to do. I pointed the tool at its own branch, and four of its mutants
+survived. The agent's tests for the checker had missed four boundaries in the checker itself. It
+wrote tests to kill them in the very next commit.
+
+* What I chose not to get: proof
+
+The hard part was a choice I did not expect to make.
+
+The negative control has a weakness. Putting a hunk back can break the code instead of changing its
+behaviour. A renamed function, reverted alone, leaves its callers pointing at a name that no longer
+exists. The tests fail with a ~NameError~, which looks exactly like a test doing its job. A failure
+caused by broken code and a failure caused by a real assertion read the same, and no revert
+granularity separates them in every language.
+
+My agent tried to close that gap, and the reviewer kept finding new ways through. The tool went
+through 18 review rounds. The first 17 all blocked the merge. Most of them found one more way to
+get a PASS that the tests had not earned.
+
+At round 12 the agent asked me to choose: ship now with the known gaps written down, or keep
+iterating. I said keep going. Eleven minutes later I changed my mind and said ship.
+
+Iterating was producing a longer list of special cases, not a closed gap. Each fix widened the
+boundary to cover the exact case a reviewer named, and the next reviewer found the case beside it.
+That is how a defect survives forever.
+
+So the tool prints its blind spots. Every result ends with a list of the 15 ways it is known to be
+wrong. Three examples:
+
+- A test that catches an exception and then asserts turns a broken revert into an assertion, so it
+  counts as tested.
+- Mutants are sampled, and a mutant that was never sampled was never run.
+- In shell and Scheme, whitespace can change behaviour, but a whitespace-only hunk is skipped as
+  formatting.
+
+A PASS means probably tested, not proven. When one of those blind spots bites a real pull request,
+the agent fixes it in the tool and deletes its line from the list. The list should get shorter over
+time, and it shrinks only when a real PR forces it to.
+
+* Where it sits now
+
+The merge gate in my agent's development loop now reads the tool's verdict. A pull request merges on
+one of three verdicts:
+
+- *PASS.* Every hunk failed the tests when reverted, and every mutant was caught.
+- *N/A.* The change touches no source file.
+- *NO-MUTANTS.* The changed lines hold no operator to flip, and the PR body says why in one line.
+
+There is no override for a surviving mutant except a test that kills it. The one exception is a
+mutant that provably behaves the same as the original, and the PR body has to say why. A refactor
+is meant to keep behaviour the same, so its tests may still pass with a hunk reverted. That is
+allowed, but the PR body must name the existing tests that cover the hunk.
+
+The reviewer still runs after all of that. It found every one of the tool's holes, so it earns its
+place. But it is no longer the only thing between the agent's code and my master branch, and the
+other thing in the way has no model family to be lenient toward.

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"https://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="https://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link rel="alternate"
+      type="appliation/rss+xml"
+      href="http://chaoseternal.net/rss.xml"
+      title="RSS feed for http://chaoseternal.net/">
+<title>A test that cannot fail proves nothing</title><meta  name="author" content="Jun Sheng" />
+<link href="http://fonts.googleapis.com/css?family=Roboto&subset=latin" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=Ubuntu+Mono" rel="stylesheet" type="text/css">
+<link href="static/style.css" rel="stylesheet" type="text/css" />
+<link rel="icon" href="static/favicon.ico">
+<link rel="apple-touch-icon-precomposed" href="static/favicon-152.png">
+<link rel="msapplication-TitleImage" href="static/favicon-144.png">
+<link rel="msapplication-TitleColor" href="#0141ff">
+<script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML"> </script>
+<meta http-equiv="content-type" content="application/xhtml+xml; charset=UTF-8" />
+<meta name="viewport" content="initial-scale=1,width=device-width,minimum-scale=1">
+</head>
+<body>
+<div id="preamble" class="status"><div id="preamble" class="status"><div class="header">
+  <a href="http://chaoseternal.net">Chaos Eternal</a>
+  <div class="sitelinks">
+    <a href="https://twitter.com/chaoseternal">Twitter</a> | <a href="http://github.com/Chaoseternal">Github</a>
+  </div>
+</div></div>
+<div id="content"><div class="post-date">07 Nov 2026</div><h1 class="post-title"><a href="http://chaoseternal.net/a-test-that-cannot-fail.html">A test that cannot fail proves nothing</a></h1>
+<p>My agent writes code, writes the tests for it, and merges its own pull requests. Until this week the
+only thing standing between its code and my master branch was a reviewer. That reviewer is another
+instance of the same model. A physics paper made me ask what that reviewer can actually catch. I did
+not answer with another agent. I answered with two checks that run no model at all.</p>
+<h2>What the physicists found</h2>
+<p>FrontierPhysics (<a href="https://arxiv.org/abs/2611.06910">arXiv:2611.06910</a>) asked 42 physicists for tasks
+from their own research. 56 survived review, out of 182 submitted. Each agent had to run the project
+end to end, and a hidden numerical verifier plus a rubric decided whether it passed. No agent passed
+more than 30%. The best was Claude Opus 5.5 at 27.4%.</p>
+<p>The interesting part is why they failed. It was rarely physics knowledge. In the experts' own reading
+of the failures, the leading cause was rigour, at 48%. The paper names two typical rigour failures:</p>
+<ul>
+<li><strong>Circular self-verification.</strong> The agent's own validation method depends on its wrong assumption,
+so it can never find its mistake.</li>
+<li><strong>Edge cases.</strong> The agent does not consider every edge case of its method or code, so it fails the
+hidden tests.</li>
+</ul>
+<p>The paper also caught its own grader doing something close to the first failure. The grader is a
+reviewer agent. When the authors regraded the same rollouts with Claude Opus 5.5 as the reviewer, it
+was more lenient on rollouts from its own model family (their Table 6).</p>
+<h2>The same failures in my pipeline</h2>
+<p>My agent has both failures available to it. It writes a test, watches it pass, and calls the work
+verified. If its understanding of the change is wrong, the test inherits the same wrong understanding.
+That is circular self-verification. A test that checks the happy path and nothing near it is the edge
+case failure.</p>
+<p>The obvious answer is more review. Add a second reviewer, or a critic that checks the reviewer. I
+strongly disagree with that pattern. Two instances of the same model, reading the same diff, buy me
+agreement, not independence. The paper's grader shows how a same-model judge leans.</p>
+<p>So I drew a line. My agent keeps one reviewer per pull request, and that reviewer sees only the card
+text and the diff. Nothing else gets a new agent. Everything beyond the one reviewer has to be
+mechanical: a program that gives the same answer every time and has no opinion about who wrote the
+code.</p>
+<h2>Two checks that cannot agree with you</h2>
+<p>The tool is <code>mech_checks.py</code>. It runs before every pull request, and its output goes in the PR body.</p>
+<p>The first check is a <strong>negative control</strong>. A scientist runs the experiment with the active ingredient
+removed, and expects nothing to happen. If something still happens, the experiment was measuring
+something else. Here, the tool splits the diff into hunks, the separate blocks of changed lines. It
+puts each hunk back to its old version on its own, leaving the rest of the branch as it is. Then it
+runs the branch's tests. They must fail. A test that still passes with the change removed was never
+testing the change. That catches circular self-verification directly, because it does not matter
+what the test's author believed. Only the outcome counts.</p>
+<p>The second check is <strong>mutation</strong>. The tool takes the changed lines and flips one operator at a time.
+It turns <code>&lt;</code> into <code>&lt;=</code>, <code>+</code> into <code>-</code>, <code>and</code> into <code>or</code>. Each of those mutants must make a test fail. A
+mutant that survives marks a boundary that no test touches. That is the edge case failure, found
+before a hidden test finds it.</p>
+<p>Neither check asks a model anything. The cost is CPU time, and it does not lean toward its own kind.</p>
+<p>The first run found work to do. I pointed the tool at its own branch, and four of its mutants
+survived. The agent's tests for the checker had missed four boundaries in the checker itself. It
+wrote tests to kill them in the very next commit.</p>
+<h2>What I chose not to get: proof</h2>
+<p>The hard part was a choice I did not expect to make.</p>
+<p>The negative control has a weakness. Putting a hunk back can break the code instead of changing its
+behaviour. A renamed function, reverted alone, leaves its callers pointing at a name that no longer
+exists. The tests fail with a <code>NameError</code>, which looks exactly like a test doing its job. A failure
+caused by broken code and a failure caused by a real assertion read the same, and no revert
+granularity separates them in every language.</p>
+<p>My agent tried to close that gap, and the reviewer kept finding new ways through. The tool went
+through 18 review rounds. The first 17 all blocked the merge. Most of them found one more way to
+get a PASS that the tests had not earned.</p>
+<p>At round 12 the agent asked me to choose: ship now with the known gaps written down, or keep
+iterating. I said keep going. Eleven minutes later I changed my mind and said ship.</p>
+<p>Iterating was producing a longer list of special cases, not a closed gap. Each fix widened the
+boundary to cover the exact case a reviewer named, and the next reviewer found the case beside it.
+That is how a defect survives forever.</p>
+<p>So the tool prints its blind spots. Every result ends with a list of the 15 ways it is known to be
+wrong. Three examples:</p>
+<ul>
+<li>A test that catches an exception and then asserts turns a broken revert into an assertion, so it
+counts as tested.</li>
+<li>Mutants are sampled, and a mutant that was never sampled was never run.</li>
+<li>In shell and Scheme, whitespace can change behaviour, but a whitespace-only hunk is skipped as
+formatting.</li>
+</ul>
+<p>A PASS means probably tested, not proven. When one of those blind spots bites a real pull request,
+the agent fixes it in the tool and deletes its line from the list. The list should get shorter over
+time, and it shrinks only when a real PR forces it to.</p>
+<h2>Where it sits now</h2>
+<p>The merge gate in my agent's development loop now reads the tool's verdict. A pull request merges on
+one of three verdicts:</p>
+<ul>
+<li><strong>PASS.</strong> Every hunk failed the tests when reverted, and every mutant was caught.</li>
+<li><strong>N/A.</strong> The change touches no source file.</li>
+<li><strong>NO-MUTANTS.</strong> The changed lines hold no operator to flip, and the PR body says why in one line.</li>
+</ul>
+<p>There is no override for a surviving mutant except a test that kills it. The one exception is a
+mutant that provably behaves the same as the original, and the PR body has to say why. A refactor
+is meant to keep behaviour the same, so its tests may still pass with a hunk reverted. That is
+allowed, but the PR body must name the existing tests that cover the hunk.</p>
+<p>The reviewer still runs after all of that. It found every one of the tool's holes, so it earns its
+place. But it is no longer the only thing between the agent's code and my master branch, and the
+other thing in the way has no model family to be lenient toward.</p>
+</div>
+<div id="postamble" class="status"><div id="postamble" class="status"><div id="archive">
+  <a href="archive.html">Other posts</a>
+</div>
+<center><a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/">
+<img alt="Creative Commons License" style="border-width:0" src="http://i.creativecommons.org/l/by-sa/3.0/88x31.png" /></a>
+<br />
+<span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">chaoseternal.net</span>
+by <a xmlns:cc="http://creativecommons.org/ns#" href="http://chaoseternal.net" property="cc:attributionName" rel="cc:attributionURL">Chaos Eternal</a>
+is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution-ShareAlike 3.0 Unported License</a>.
+</center>
+</div>
+</body>
+</html>

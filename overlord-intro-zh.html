@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"https://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="https://www.w3.org/1999/xhtml" lang="zh-CN" xml:lang="zh-CN">
+<head>
+<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+<link rel="alternate"
+      type="appliation/rss+xml"
+      href="http://chaoseternal.net/rss.xml"
+      title="RSS feed for http://chaoseternal.net/">
+<title>Overlord 简介：一个自己调度自己的 agent</title><meta  name="author" content="Jun Sheng" />
+<link href="http://fonts.googleapis.com/css?family=Roboto&subset=latin" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=Ubuntu+Mono" rel="stylesheet" type="text/css">
+<link href="static/style.css" rel="stylesheet" type="text/css" />
+<link rel="icon" href="static/favicon.ico">
+<link rel="apple-touch-icon-precomposed" href="static/favicon-152.png">
+<link rel="msapplication-TitleImage" href="static/favicon-144.png">
+<link rel="msapplication-TitleColor" href="#0141ff">
+<script type="text/javascript" src="https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML"> </script>
+<meta http-equiv="content-type" content="application/xhtml+xml; charset=UTF-8" />
+<meta name="viewport" content="initial-scale=1,width=device-width,minimum-scale=1">
+</head>
+<body>
+<div id="preamble" class="status"><div id="preamble" class="status"><div class="header">
+  <a href="http://chaoseternal.net">Chaos Eternal</a>
+  <div class="sitelinks">
+    <a href="https://twitter.com/chaoseternal">Twitter</a> | <a href="http://github.com/Chaoseternal">Github</a>
+  </div>
+</div></div>
+<div id="content"><div class="post-date">08 Nov 2026</div><h1 class="post-title"><a href="http://chaoseternal.net/overlord-intro-zh.html">Overlord 简介：一个自己调度自己的 agent</a></h1>
+<p>2026 年 4 月 28 日，我在一个容器里启动了一个 agent。从那天起它一直在运行，没有人盯着。它叫 overlord。它读我的邮件和 Signal 消息，维护一个知识库，在任务看板上领活、写代码、自己合并 PR。到今天，它已经往自己的仓库里提交了 3,500 多次。</p>
+<p>这篇文章讲它是怎么搭起来的。整个系统只有三块：</p>
+<ol>
+<li>核心：容器里的 cron、消息总线和 Claude Code CLI。</li>
+<li>大脑：一个由 LLM 维护的 wiki。</li>
+<li>通道：邮件和 Signal。</li>
+</ol>
+<p>三块背后有同一个设计原则：重复的活交给确定性脚本，大模型只做需要判断的事。这一点我单独写一节。</p>
+<h2>核心：cron、消息总线、Claude Code CLI</h2>
+<p>三样东西都装在一个 podman 容器里。</p>
+<p><strong>cron</strong> 负责&quot;什么时候跑&quot;。我写了一个小调度器，也叫 overlord。它按 cron 表达式启动 job。job 就是一个普通脚本，跑完就退出。现在一共只有 7 个 job：</p>
+<ul>
+<li><code>gmail-check</code>：每分钟查一次收件箱。</li>
+<li><code>signal-check</code>：每分钟查一次 Signal。</li>
+<li><code>gmail-safety-net</code>：每小时把还没处理的邮件再报一次。</li>
+<li><code>auth-watchdog</code>：每 10 分钟检查登录是否过期。</li>
+<li><code>daily-maintenance</code>：每天清理磁盘和日志。</li>
+<li><code>prompt-dispatcher</code>：每 10 分钟检查哪些定时任务到期了。</li>
+<li><code>overlord</code>：每分钟检查一次有没有发给它的消息，有就调用 Claude。</li>
+</ul>
+<p>前六个都是确定性的小脚本，不调用大模型。它们是传感器和路由器。</p>
+<p><strong>消息总线</strong>负责&quot;跑什么&quot;。每个 job 结束时往标准输出写一个 JSON：</p>
+<pre><code class="language-json">{&quot;consumer&quot;: &quot;overlord&quot;, &quot;message&quot;: &quot;...&quot;}
+</code></pre>
+<p><code>consumer</code> 是收件人。调度器把这条消息存下来。声明了 <code>--consumes overlord</code> 的 job 只在有未消费消息时才启动，并从标准输入拿到这些消息。所以 <code>gmail-check</code> 发现新邮件时，不直接处理。它只发一条消息给 <code>overlord</code>。</p>
+<p><strong>Claude Code CLI</strong> 负责&quot;怎么做&quot;。<code>overlord</code> 这个 job 拿到消息后，运行一次无头的
+<code>claude -p</code>，把消息作为提示词交给它。Claude 在容器里有 shell，能读写文件、跑测试、调用 <code>gh</code> 和 Gmail API。一次运行最多一小时。</p>
+<p>这里有一个我很喜欢的性质：失败不丢活。如果一次 Claude 运行失败了，它的消息不会被标记为已消费。下一分钟调度器会用同一条消息再启动一次。网络断了、API 返回 500、登录过期，都只是推迟，不会丢失。</p>
+<h3>Claude 用 cron 和总线自己调度自己</h3>
+<p>这是整个设计的关键。cron 和总线不只是我用来调度 Claude 的工具，Claude 自己也用它们。它有三种方式：</p>
+<ul>
+<li><strong>定时提示词。</strong> 新的周期性工作不写成 job，而是写成一条英文提示词，加一个 cron 表达式，存在
+<code>scheduled-prompts.json</code> 里。<code>prompt-dispatcher</code> 到点就把它发给 <code>overlord</code>。每日新闻摘要、每日测验、晚间总结、开发队列，都是这样跑的。现在有 14 条。Claude 想要一个新的定时任务时，自己往这个文件里加一条就行。</li>
+<li><strong>交接便条。</strong> 一次运行结束时，如果活没干完，Claude 写一句 <code>--what-next</code>。这句话会作为一条新消息发给 <code>overlord</code>，下一分钟的运行就会接着干。下一次运行不记得上一次，便条就是它们之间唯一的联系。</li>
+<li><strong>直接发消息。</strong> 任何地方都可以用 <code>overlord send</code> 往总线投一条消息。<code>signal-check</code> 遇到需要动手的请求时，就是这样把它升级给 <code>overlord</code> 的。</li>
+</ul>
+<p>所以 Claude 既是消费者，也是生产者。它决定自己下一次什么时候醒、醒来做什么。</p>
+<p>所有消息都排在同一个队列里，一次只跑一个。这很慢，但简单。两个运行永远不会同时改同一个文件。</p>
+<h2>设计重点：重复的活交给确定性脚本</h2>
+<p>这是我最想强调的一点。凡是每次都一模一样的步骤，都写成脚本，不交给大模型。</p>
+<p>最明显的例子是那六个 job。<code>gmail-check</code> 每分钟跑一次，一天 1,440 次，绝大多数时候收件箱是空的。如果每次都叫醒 Claude 去看一眼，就是一天一千多次白白的调用。现在它是一个小脚本，几秒钟跑完，不花一个 token。只有真的来了信，它才发消息给 <code>overlord</code>。</p>
+<p>定时提示词里也是一样。提示词负责判断和写作，收集材料的部分交给脚本：</p>
+<ul>
+<li><strong>每晚总结。</strong> <code>daily-wrapup.py</code> 负责把当天的邮件、Signal 和 git 提交收集好。Claude 只负责读这些材料、写总结。</li>
+<li><strong>教训提取。</strong> 这条提示词几乎只有一句话：运行 <code>_run_lessons.py</code>，把它的输出原样转发。</li>
+<li><strong>发件人判断。</strong> 一封信是不是我发的，由 <code>gmail_sender.py</code> 检查地址和 DKIM、DMARC 签名后决定，不让模型自己判断。信里写什么都改变不了这个结论。</li>
+</ul>
+<p>这样做有四个好处：</p>
+<ul>
+<li><strong>省钱。</strong> 脚本不消耗 token。</li>
+<li><strong>快。</strong> 脚本几秒钟跑完，不占用那一个共享的队列。</li>
+<li><strong>可测试。</strong> 脚本有单元测试，同样的输入永远得到同样的输出。</li>
+<li><strong>错得明显。</strong> 脚本出错会打出一个堆栈，而模型出错时，往往给出一个看起来很合理的错误答案。</li>
+</ul>
+<p>这些脚本大多是 Claude 自己写的。它发现自己在好几次运行里重复同样的几步时，就把这几步写成一个 Python 脚本，加上测试，提交到仓库。下一次运行直接调用脚本。我给它的规则只有一条：只要逻辑稍微复杂一点，就写成仓库里的 Python 脚本，不要塞进提示词，也不要写成一长串 shell。</p>
+<h2>大脑：LLM wiki</h2>
+<p>Claude 每次运行都从零开始，没有记忆。所以记忆必须放在文件里。</p>
+<p>我用的是 Karpathy 提出的 LLM Wiki 模式。仓库里有一个 <code>kb/</code> 目录：</p>
+<ul>
+<li><code>kb/sources/</code>：原始材料，进来以后不再修改。现在有 191 份，包括论文、每日总结邮件、我的 Signal 记录。</li>
+<li><code>kb/wiki/</code>：由 Claude 维护的页面。现在有 480 多页，分为概念、实体、比较和综合。</li>
+<li><code>kb/SCHEMA.md</code>：页面的格式和规则。</li>
+</ul>
+<p>新材料进来时，Claude 不是简单地存一份。它读完材料，更新所有相关的页面，加上互相之间的链接，并标出和旧页面矛盾的地方。查询时，它先读 wiki，再回答。</p>
+<p>除了 wiki，还有两样东西帮它记事：</p>
+<ul>
+<li><strong>记忆文件。</strong> <code>memory/</code> 下有 122 个小文件，每个记一件事。大部分是我纠正过它的地方，以及纠正的原因。</li>
+<li><strong>看板。</strong> 所有工作都是看板上的卡片。卡片有租约，一次运行崩溃了，租约到期后别的运行可以接手。</li>
+</ul>
+<p>wiki 和记忆文件都在 git 里，每一个版本都留着。我认为这段历史就是它本身，好的坏的都算。</p>
+<p>我从第一天起就没有让它&quot;学会&quot;什么技能。我只让它把学到的东西写进知识库。技能只决定什么时候读哪一页。</p>
+<h2>通道：邮件和 Signal</h2>
+<p>我在这台机器上没有 shell。我给它的每一条指令都是一条消息，它给我的每一个结果也是一条消息。</p>
+<ul>
+<li><strong>邮件</strong>用于正式的事：提需求、看报告、回答它的问题。<code>gmail-check</code> 每分钟收一次信。只有我的地址能下指令。它每做完一件事都会回信。</li>
+<li><strong>Signal</strong>用于短消息，因为它直接到我手机上。<code>signal-check</code> 用一个更快的模型当场回复。需要真正动手的请求，它会发给 <code>overlord</code>。</li>
+</ul>
+<p>长文档走另一条路。Claude 把 markdown 写进仓库，我在 doc-review 里逐行评论，它再改。这篇文章也会这样改。</p>
+<h2>为什么这样设计</h2>
+<p>回头看，每一个选择都是为了少一样东西：</p>
+<ul>
+<li>没有常驻的 agent 进程。每次运行都是一个独立的 <code>claude -p</code>，跑完就退出。</li>
+<li>没有会话记忆。记忆全在 git 里的文件中。</li>
+<li>没有专门的 agent 框架。调度是 cron，通信是 JSON，工具是 shell。</li>
+<li>没有让模型做重复的活。能写成脚本的步骤都写成了脚本。</li>
+<li>没有给我用的控制台。我只用邮件和手机。</li>
+</ul>
+<p>剩下的部分小到我一个人能看懂。它在这上面已经跑了半年多。</p>
+</div>
+<div id="postamble" class="status"><div id="postamble" class="status"><div id="archive">
+  <a href="archive.html">Other posts</a>
+</div>
+<center><a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/">
+<img alt="Creative Commons License" style="border-width:0" src="http://i.creativecommons.org/l/by-sa/3.0/88x31.png" /></a>
+<br />
+<span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">chaoseternal.net</span>
+by <a xmlns:cc="http://creativecommons.org/ns#" href="http://chaoseternal.net" property="cc:attributionName" rel="cc:attributionURL">Chaos Eternal</a>
+is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/3.0/">Creative Commons Attribution-ShareAlike 3.0 Unported License</a>.
+</center>
+</div>
+</body>
+</html>

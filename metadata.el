@@ -1,5 +1,5 @@
 (setq org-static-blog-publish-title "Chaos Eternal")
-(setq org-static-blog-publish-url "http://chaoseternal.net/")
+(setq org-static-blog-publish-url "https://www.chaoseternal.net/")
 (setq org-static-blog-publish-directory "~/archive/ChaosEternal.github.io/")
 (setq org-static-blog-posts-directory "~/archive/ChaosEternal.github.io/posts/")
 (setq org-static-blog-drafts-directory "~/archive/ChaosEternal.github.io/drafts/")
@@ -22,7 +22,7 @@
 
 (setq org-static-blog-page-preamble
       "<div id=\"preamble\" class=\"status\"><div class=\"header\">
-  <a href=\"http://chaoseternal.net\">Chaos Eternal</a>
+  <a href=\"https://www.chaoseternal.net\">Chaos Eternal</a>
   <div class=\"sitelinks\">
     <a href=\"https://twitter.com/chaoseternal\">Twitter</a> | <a href=\"http://github.com/Chaoseternal\">Github</a>
   </div>
@@ -37,7 +37,7 @@
 <img alt=\"Creative Commons License\" style=\"border-width:0\" src=\"http://i.creativecommons.org/l/by-sa/3.0/88x31.png\" /></a>
 <br />
 <span xmlns:dct=\"http://purl.org/dc/terms/\" href=\"http://purl.org/dc/dcmitype/Text\" property=\"dct:title\" rel=\"dct:type\">chaoseternal.net</span> 
-by <a xmlns:cc=\"http://creativecommons.org/ns#\" href=\"http://chaoseternal.net\" property=\"cc:attributionName\" rel=\"cc:attributionURL\">Chaos Eternal</a> 
+by <a xmlns:cc=\"http://creativecommons.org/ns#\" href=\"https://www.chaoseternal.net\" property=\"cc:attributionName\" rel=\"cc:attributionURL\">Chaos Eternal</a> 
 is licensed under a <a rel=\"license\" href=\"http://creativecommons.org/licenses/by-sa/3.0/\">Creative Commons Attribution-ShareAlike 3.0 Unported License</a>.
 </center>
 ")

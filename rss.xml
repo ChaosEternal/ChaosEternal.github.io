@@ -3,7 +3,7 @@
 <channel>
   <title>Chaos Eternal</title>
   <description>Chaos Eternal</description>
-  <link>http://chaoseternal.net/</link>
+  <link>https://www.chaoseternal.net/</link>
   <lastBuildDate>Thu, 22 Mar 2018 11:36:55 +0800</lastBuildDate>
 <item>
   <title>Fixing a greenplum performance issue</title>
@@ -206,7 +206,7 @@ Yao Yandong made a more robust patch according to my findings. Instead of hard-c
 
 </div>
 </div>]]></description>
-  <link>http://chaoseternal.net/fix-a-greenplum-performance-issue.html</link>
+  <link>https://www.chaoseternal.net/fix-a-greenplum-performance-issue.html</link>
   <pubDate>Wed, 21 Mar 2018 08:00:00 +0800</pubDate>
 </item>
 <item>
@@ -471,7 +471,7 @@ to drop each invalid packets.
 </div>
 </div>
 ]]></description>
-  <link>http://chaoseternal.net/a-log-of-trouble-shooting.html</link>
+  <link>https://www.chaoseternal.net/a-log-of-trouble-shooting.html</link>
   <pubDate>Tue, 20 Mar 2018 08:00:00 +0800</pubDate>
 </item>
 <item>
@@ -807,7 +807,7 @@ they are not essentials but sugars just make life happier. And even type systems
 
 </div>
 </div>]]></description>
-  <link>http://chaoseternal.net/syntax-scheme.html</link>
+  <link>https://www.chaoseternal.net/syntax-scheme.html</link>
   <pubDate>Sun, 29 Oct 2017 08:00:00 +0800</pubDate>
 </item>
 <item>
@@ -1289,7 +1289,7 @@ Packrat is a powerful parser and in this blog, I briefed its structure and usage
 
 </div>
 </div>]]></description>
-  <link>http://chaoseternal.net/packrat-intro.html</link>
+  <link>https://www.chaoseternal.net/packrat-intro.html</link>
   <pubDate>Sun, 29 Oct 2017 08:00:00 +0800</pubDate>
 </item>
 <item>
@@ -1334,7 +1334,7 @@ and more.
 </div>
 </div>
 ]]></description>
-  <link>http://chaoseternal.net/hello-world.html</link>
+  <link>https://www.chaoseternal.net/hello-world.html</link>
   <pubDate>Sun, 17 Sep 2017 08:00:00 +0800</pubDate>
 </item>
 </channel>

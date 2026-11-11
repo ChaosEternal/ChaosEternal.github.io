@@ -424,3 +424,21 @@ pre {
 .paren3 {
     color: #555500;
 }
+/* Phones: keep long URLs and wide tables inside the screen, and pad text off the edges. */
+#content {
+    overflow-wrap: break-word;
+}
+#content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+}
+@media (max-width: 640px) {
+    body {
+        text-align: left;
+    }
+    #content, #postamble {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+}

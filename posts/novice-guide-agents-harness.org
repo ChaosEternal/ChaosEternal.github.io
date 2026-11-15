@@ -79,8 +79,7 @@ Two facts about the window drive almost every design decision:
   instructions, every earlier message and every tool result, again. A big tool result admitted on
   turn 3 is paid for on turns 4, 5 and 6.
 
-I wrote a whole post arguing that this is the only thing, titled *Context management is the only
-thing in agent*. The short form: once the model is rented and the loop is written, the only decision
+I wrote a whole post arguing that this is the only thing, titled [[https://jun-sheng.medium.com/only-context-management-matters-d61ce03f3f8c][/Only context management matters/]]. The short form: once the model is rented and the loop is written, the only decision
 left is which tokens the model reads on each turn. For a model, what is real is the tokens in its
 window.
 

@@ -70,7 +70,7 @@ reads on each turn.
 
 > For a model, what is real is the tokens in its window.
 
-From my post, *Context management is the only thing in agent*
+From my post, [*Only context management matters*](https://jun-sheng.medium.com/only-context-management-matters-d61ce03f3f8c)
 
 ---
 
